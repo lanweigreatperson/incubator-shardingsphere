@@ -19,7 +19,7 @@ package org.apache.shardingsphere.core.optimizer;
 
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
-import org.apache.shardingsphere.api.algorithm.sharding.ListShardingValue;
+import org.apache.shardingsphere.core.keygen.GeneratedKey;
 import org.apache.shardingsphere.core.optimizer.condition.ShardingConditions;
 import org.apache.shardingsphere.core.optimizer.insert.InsertOptimizeEngine;
 import org.apache.shardingsphere.core.optimizer.insert.InsertShardingCondition;
@@ -35,9 +35,11 @@ import org.apache.shardingsphere.core.parsing.parser.sql.dml.insert.InsertStatem
 import org.apache.shardingsphere.core.parsing.parser.token.InsertValuesToken;
 import org.apache.shardingsphere.core.parsing.parser.token.ItemsToken;
 import org.apache.shardingsphere.core.parsing.parser.token.TableToken;
-import org.apache.shardingsphere.core.routing.router.sharding.GeneratedKey;
+import org.apache.shardingsphere.core.routing.value.ListRouteValue;
 import org.apache.shardingsphere.core.rule.ShardingRule;
-import org.apache.shardingsphere.core.yaml.sharding.YamlShardingConfiguration;
+import org.apache.shardingsphere.core.yaml.config.sharding.YamlRootShardingConfiguration;
+import org.apache.shardingsphere.core.yaml.engine.YamlEngine;
+import org.apache.shardingsphere.core.yaml.swapper.impl.ShardingRuleConfigurationYamlSwapper;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -74,8 +76,8 @@ public final class InsertOptimizeEngineTest {
     public void setUp() throws IOException {
         URL url = InsertOptimizeEngineTest.class.getClassLoader().getResource("yaml/optimize-rule.yaml");
         Preconditions.checkNotNull(url, "Cannot found rewrite rule yaml configuration.");
-        YamlShardingConfiguration yamlShardingConfig = YamlShardingConfiguration.unmarshal(new File(url.getFile()));
-        shardingRule = new ShardingRule(yamlShardingConfig.getShardingRule().getShardingRuleConfiguration(), yamlShardingConfig.getDataSources().keySet());
+        YamlRootShardingConfiguration yamlShardingConfig = YamlEngine.unmarshal(new File(url.getFile()), YamlRootShardingConfiguration.class);
+        shardingRule = new ShardingRule(new ShardingRuleConfigurationYamlSwapper().swap(yamlShardingConfig.getShardingRule()), yamlShardingConfig.getDataSources().keySet());
         initializeWithValuesWithPlaceHolder();
         initializeInsertWithValuesWithoutPlaceHolder();
         initializeInsertWithoutValuesWithoutPlaceHolder();
@@ -107,10 +109,10 @@ public final class InsertOptimizeEngineTest {
         insertStatementWithValuesWithPlaceHolder.addSQLToken(new InsertValuesToken(39, "t_order"));
         AndCondition andCondition1 = new AndCondition();
         andCondition1.getConditions().add(new Condition(new Column("user_id", "t_order"), new SQLPlaceholderExpression(0)));
-        insertStatementWithValuesWithPlaceHolder.getConditions().getOrCondition().getAndConditions().add(andCondition1);
+        insertStatementWithValuesWithPlaceHolder.getRouteConditions().getOrCondition().getAndConditions().add(andCondition1);
         AndCondition andCondition2 = new AndCondition();
         andCondition2.getConditions().add(new Condition(new Column("user_id", "t_order"), new SQLPlaceholderExpression(2)));
-        insertStatementWithValuesWithPlaceHolder.getConditions().getOrCondition().getAndConditions().add(andCondition2);
+        insertStatementWithValuesWithPlaceHolder.getRouteConditions().getOrCondition().getAndConditions().add(andCondition2);
         insertStatementWithValuesWithPlaceHolder.getInsertValues().getInsertValues().add(new InsertValue(DefaultKeyword.VALUES, "(?, ?)", 2));
         insertStatementWithValuesWithPlaceHolder.getInsertValues().getInsertValues().add(new InsertValue(DefaultKeyword.VALUES, "(?, ?)", 2));
     }
@@ -127,7 +129,7 @@ public final class InsertOptimizeEngineTest {
         insertStatementWithValuesWithoutPlaceHolder.addSQLToken(itemsToken);
         AndCondition andCondition = new AndCondition();
         andCondition.getConditions().add(new Condition(new Column("user_id", "t_order"), new SQLNumberExpression(12)));
-        insertStatementWithValuesWithoutPlaceHolder.getConditions().getOrCondition().getAndConditions().add(andCondition);
+        insertStatementWithValuesWithoutPlaceHolder.getRouteConditions().getOrCondition().getAndConditions().add(andCondition);
         insertStatementWithValuesWithoutPlaceHolder.getInsertValues().getInsertValues().add(new InsertValue(DefaultKeyword.VALUES, "(12,'a')", 0));
     }
     
@@ -145,7 +147,7 @@ public final class InsertOptimizeEngineTest {
         insertStatementWithoutValuesWithPlaceHolder.getColumns().add(new Column("user_id", "t_order"));
         AndCondition andCondition = new AndCondition();
         andCondition.getConditions().add(new Condition(new Column("user_id", "t_order"), new SQLNumberExpression(12)));
-        insertStatementWithoutValuesWithPlaceHolder.getConditions().getOrCondition().getAndConditions().add(andCondition);
+        insertStatementWithoutValuesWithPlaceHolder.getRouteConditions().getOrCondition().getAndConditions().add(andCondition);
         insertStatementWithoutValuesWithPlaceHolder.getInsertValues().getInsertValues().add(new InsertValue(DefaultKeyword.SET, "user_id = ?, status = ?", 2));
     }
     
@@ -163,7 +165,7 @@ public final class InsertOptimizeEngineTest {
         insertStatementWithoutValuesWithoutPlaceHolder.getColumns().add(new Column("user_id", "t_order"));
         AndCondition andCondition = new AndCondition();
         andCondition.getConditions().add(new Condition(new Column("user_id", "t_order"), new SQLNumberExpression(12)));
-        insertStatementWithoutValuesWithoutPlaceHolder.getConditions().getOrCondition().getAndConditions().add(andCondition);
+        insertStatementWithoutValuesWithoutPlaceHolder.getRouteConditions().getOrCondition().getAndConditions().add(andCondition);
         insertStatementWithoutValuesWithoutPlaceHolder.getInsertValues().getInsertValues().add(new InsertValue(DefaultKeyword.SET, "user_id = 12, status = 'a'", 0));
     }
     
@@ -187,10 +189,10 @@ public final class InsertOptimizeEngineTest {
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(1)).getInsertValueExpression(), is("(?, ?, ?)"));
         assertThat(actual.getShardingConditions().get(0).getShardingValues().size(), is(2));
         assertThat(actual.getShardingConditions().get(1).getShardingValues().size(), is(2));
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(1), 10);
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(1).getShardingValues().get(0), 2);
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(1).getShardingValues().get(1), 11);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(1), 10);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(1).getShardingValues().get(0), 2);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(1).getShardingValues().get(1), 11);
         assertTrue(insertStatementWithValuesWithPlaceHolder.isContainGenerateKey());
     }
     
@@ -210,8 +212,8 @@ public final class InsertOptimizeEngineTest {
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(1)).getInsertValueExpression(), is("(?, ?)"));
         assertThat(actual.getShardingConditions().get(0).getShardingValues().size(), is(1));
         assertThat(actual.getShardingConditions().get(1).getShardingValues().size(), is(1));
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 10);
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(1).getShardingValues().get(0), 11);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 10);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(1).getShardingValues().get(0), 11);
     }
     
     @Test
@@ -222,8 +224,8 @@ public final class InsertOptimizeEngineTest {
         assertThat(actual.getShardingConditions().size(), is(1));
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getParameters().size(), is(0));
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getInsertValueExpression(), is("(12,'a', 1)"));
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(1), 12);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(1), 12);
         assertTrue(insertStatementWithValuesWithoutPlaceHolder.isContainGenerateKey());
     }
     
@@ -238,7 +240,7 @@ public final class InsertOptimizeEngineTest {
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getParameters().get(1), CoreMatchers.<Object>is(12));
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getParameters().get(2), CoreMatchers.<Object>is("a"));
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getInsertValueExpression(), is("order_id = ?, user_id = ?, status = ?"));
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
     }
     
     @Test
@@ -249,12 +251,12 @@ public final class InsertOptimizeEngineTest {
         assertThat(actual.getShardingConditions().size(), is(1));
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getParameters().size(), is(0));
         assertThat(((InsertShardingCondition) actual.getShardingConditions().get(0)).getInsertValueExpression(), is("order_id = 1, user_id = 12, status = 'a'"));
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
-        assertShardingValue((ListShardingValue) actual.getShardingConditions().get(0).getShardingValues().get(1), 12);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(0), 1);
+        assertShardingValue((ListRouteValue) actual.getShardingConditions().get(0).getShardingValues().get(1), 12);
         assertTrue(insertStatementWithoutValuesWithoutPlaceHolder.isContainGenerateKey());
     }
     
-    private void assertShardingValue(final ListShardingValue actual, final int expected) {
+    private void assertShardingValue(final ListRouteValue actual, final int expected) {
         assertThat(actual.getValues().size(), is(1));
         assertThat((int) actual.getValues().iterator().next(), is(expected));
     }

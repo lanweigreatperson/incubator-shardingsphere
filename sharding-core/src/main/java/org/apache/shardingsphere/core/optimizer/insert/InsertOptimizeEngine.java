@@ -18,7 +18,7 @@
 package org.apache.shardingsphere.core.optimizer.insert;
 
 import lombok.RequiredArgsConstructor;
-import org.apache.shardingsphere.api.algorithm.sharding.ListShardingValue;
+import org.apache.shardingsphere.core.keygen.GeneratedKey;
 import org.apache.shardingsphere.core.optimizer.OptimizeEngine;
 import org.apache.shardingsphere.core.optimizer.condition.ShardingCondition;
 import org.apache.shardingsphere.core.optimizer.condition.ShardingConditions;
@@ -29,7 +29,7 @@ import org.apache.shardingsphere.core.parsing.parser.context.condition.Condition
 import org.apache.shardingsphere.core.parsing.parser.context.condition.GeneratedKeyCondition;
 import org.apache.shardingsphere.core.parsing.parser.context.insertvalue.InsertValue;
 import org.apache.shardingsphere.core.parsing.parser.sql.dml.insert.InsertStatement;
-import org.apache.shardingsphere.core.routing.router.sharding.GeneratedKey;
+import org.apache.shardingsphere.core.routing.value.ListRouteValue;
 import org.apache.shardingsphere.core.rule.ShardingRule;
 
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
     
     @Override
     public ShardingConditions optimize() {
-        List<AndCondition> andConditions = insertStatement.getConditions().getOrCondition().getAndConditions();
+        List<AndCondition> andConditions = insertStatement.getRouteConditions().getOrCondition().getAndConditions();
         List<InsertValue> insertValues = insertStatement.getInsertValues().getInsertValues();
         List<ShardingCondition> result = new ArrayList<>(andConditions.size());
         Iterator<Comparable<?>> generatedKeys = createGeneratedKeys();
@@ -72,7 +72,7 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
             }
             InsertShardingCondition insertShardingCondition = isNeededToAppendGeneratedKey() ? getInsertShardingCondition(generatedKeys.next(), insertValue, currentParameters) 
                     : new InsertShardingCondition(insertValue.getExpression(), currentParameters);
-            insertShardingCondition.getShardingValues().addAll(getShardingCondition(andConditions.get(i)));
+            insertShardingCondition.getShardingValues().addAll(getShardingValues(andConditions.get(i)));
             result.add(insertShardingCondition);
         }
         return new ShardingConditions(result);
@@ -96,7 +96,7 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
         Column generateKeyColumn = shardingRule.findGenerateKeyColumn(insertStatement.getTables().getSingleTableName()).get();
         String expression = getExpression(insertValue, currentGeneratedKey, generateKeyColumn, currentParameters);
         InsertShardingCondition result = new InsertShardingCondition(expression, currentParameters);
-        result.getShardingValues().add(getShardingCondition(generateKeyColumn, currentGeneratedKey));
+        result.getShardingValues().add(getShardingValue(generateKeyColumn, currentGeneratedKey));
         insertStatement.setContainGenerateKey(true);
         return result;
     }
@@ -137,15 +137,14 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
         return insertValue.getExpression().substring(0, insertValue.getExpression().lastIndexOf(")")) + ", ?)";
     }
     
-    private ListShardingValue getShardingCondition(final Column column, final Comparable<?> value) {
-        return new ListShardingValue<>(column.getTableName(), column.getName(),
-                new GeneratedKeyCondition(column, -1, value).getConditionValues(parameters));
+    private ListRouteValue getShardingValue(final Column column, final Comparable<?> value) {
+        return new ListRouteValue<>(column, new GeneratedKeyCondition(column, -1, value).getConditionValues(parameters));
     }
     
-    private Collection<ListShardingValue> getShardingCondition(final AndCondition andCondition) {
-        Collection<ListShardingValue> result = new LinkedList<>();
+    private Collection<ListRouteValue> getShardingValues(final AndCondition andCondition) {
+        Collection<ListRouteValue> result = new LinkedList<>();
         for (Condition each : andCondition.getConditions()) {
-            result.add(new ListShardingValue<>(each.getColumn().getTableName(), each.getColumn().getName(), each.getConditionValues(parameters)));
+            result.add(new ListRouteValue<>(each.getColumn(), each.getConditionValues(parameters)));
         }
         return result;
     }

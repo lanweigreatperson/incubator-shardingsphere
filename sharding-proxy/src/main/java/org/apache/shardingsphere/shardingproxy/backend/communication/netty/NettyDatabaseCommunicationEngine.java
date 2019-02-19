@@ -17,10 +17,12 @@
 
 package org.apache.shardingsphere.shardingproxy.backend.communication.netty;
 
+import com.google.common.base.Optional;
 import io.netty.channel.Channel;
 import io.netty.channel.pool.SimpleChannelPool;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import org.apache.shardingsphere.core.constant.DatabaseType;
 import org.apache.shardingsphere.core.constant.SQLType;
 import org.apache.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
@@ -45,11 +47,13 @@ import org.apache.shardingsphere.shardingproxy.runtime.schema.LogicSchema;
 import org.apache.shardingsphere.shardingproxy.runtime.schema.MasterSlaveSchema;
 import org.apache.shardingsphere.shardingproxy.runtime.schema.ShardingSchema;
 import org.apache.shardingsphere.shardingproxy.transport.common.packet.DatabasePacket;
-import org.apache.shardingsphere.shardingproxy.transport.mysql.constant.ColumnType;
-import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command.CommandResponsePackets;
-import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command.query.text.query.ComQueryPacket;
-import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.ErrPacket;
-import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.OKPacket;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.CommandResponsePackets;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.query.DataHeaderPacket;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.query.QueryResponsePackets;
+import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command.query.text.query.MySQLComPacketQuery;
+import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.MySQLErrPacket;
+import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.MySQLOKPacket;
+import org.apache.shardingsphere.spi.algorithm.encrypt.ShardingEncryptor;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -98,6 +102,8 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
     
     private MergedResult mergedResult;
     
+    private DataHeaderPacket dataHeaderPacket;
+    
     @Override
     public CommandResponsePackets execute() {
         try {
@@ -130,7 +136,7 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
                 logicSchema.getMetaData(), databaseType, GLOBAL_REGISTRY.getShardingProperties().<Boolean>getValue(ShardingPropertiesConstant.SQL_SHOW));
         SQLRouteResult routeResult = routingEngine.route(sql);
         if (routeResult.getRouteUnits().isEmpty()) {
-            return new CommandResponsePackets(new OKPacket(1));
+            return new CommandResponsePackets(new MySQLOKPacket(1));
         }
         synchronizedFuture = new SynchronizedFuture(routeResult.getRouteUnits().size());
         FutureRegistry.getInstance().put(connectionId, synchronizedFuture);
@@ -165,7 +171,7 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
         Channel channel = pool.acquire().get(GLOBAL_REGISTRY.getShardingProperties().<Long>getValue(ShardingPropertiesConstant.PROXY_BACKEND_CONNECTION_TIMEOUT_SECONDS), TimeUnit.SECONDS);
         channelMap.get(dataSourceName).add(channel);
         ChannelRegistry.getInstance().putConnectionId(channel.id().asShortText(), connectionId);
-        channel.writeAndFlush(new ComQueryPacket(sequenceId, sql));
+        channel.writeAndFlush(new MySQLComPacketQuery(sequenceId, sql));
     }
     
     private CommandResponsePackets merge(final SQLStatement sqlStatement, final List<CommandResponsePackets> packets, final List<QueryResult> queryResults) {
@@ -174,7 +180,7 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
             headPackets.getPackets().add(each.getHeadPacket());
         }
         for (DatabasePacket each : headPackets.getPackets()) {
-            if (each instanceof ErrPacket) {
+            if (each instanceof MySQLErrPacket) {
                 return new CommandResponsePackets(each);
             }
         }
@@ -194,21 +200,22 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
         int affectedRows = 0;
         long lastInsertId = 0;
         for (DatabasePacket each : firstPackets.getPackets()) {
-            if (each instanceof OKPacket) {
-                OKPacket okPacket = (OKPacket) each;
-                affectedRows += okPacket.getAffectedRows();
-                lastInsertId = okPacket.getLastInsertId();
+            if (each instanceof MySQLOKPacket) {
+                MySQLOKPacket mySQLOKPacket = (MySQLOKPacket) each;
+                affectedRows += mySQLOKPacket.getAffectedRows();
+                lastInsertId = mySQLOKPacket.getLastInsertId();
             }
         }
-        return new CommandResponsePackets(new OKPacket(1, affectedRows, lastInsertId));
+        return new CommandResponsePackets(new MySQLOKPacket(1, affectedRows, lastInsertId));
     }
     
     private CommandResponsePackets mergeDQLorDAL(final SQLStatement sqlStatement, final List<CommandResponsePackets> packets, final List<QueryResult> queryResults) {
         try {
             mergedResult = MergeEngineFactory.newInstance(
-                    DatabaseType.MySQL, ((ShardingSchema) logicSchema).getShardingRule(), sqlStatement, logicSchema.getMetaData().getTable(), queryResults).merge();
+                GlobalRegistry.getInstance().getDatabaseType(), ((ShardingSchema) logicSchema).getShardingRule(), sqlStatement, logicSchema.getMetaData().getTable(), queryResults).merge();
+            dataHeaderPacket = ((QueryResponsePackets) packets.get(0)).getDataHeaderPackets().iterator().next();
         } catch (final SQLException ex) {
-            return new CommandResponsePackets(new ErrPacket(1, ex));
+            return new CommandResponsePackets(new MySQLErrPacket(1, ex.getErrorCode(), ex.getSQLState(), ex.getMessage()));
         }
         return packets.get(0);
     }
@@ -224,11 +231,12 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
     
     @Override
     public ResultPacket getResultValue() throws SQLException {
-        List<Object> data = new ArrayList<>(columnCount);
+        List<Object> row = new ArrayList<>(columnCount);
         for (int columnIndex = 1; columnIndex <= columnCount; columnIndex++) {
-            data.add(mergedResult.getValue(columnIndex, Object.class));
+            Object data = logicSchema instanceof MasterSlaveSchema ? mergedResult.getValue(columnIndex, Object.class) : decode(columnIndex, dataHeaderPacket.getTable(), dataHeaderPacket.getOrgName());
+            row.add(data);
         }
-        return new ResultPacket(++currentSequenceId, data, columnCount, Collections.<ColumnType>emptyList());
+        return new ResultPacket(++currentSequenceId, row, columnCount, Collections.<Integer>emptyList());
     }
     
     private void channelRelease() {
@@ -237,5 +245,12 @@ public final class NettyDatabaseCommunicationEngine implements DatabaseCommunica
                 CLIENT_MANAGER.getBackendNettyClient(logicSchema.getName()).getPoolMap().get(entry.getKey()).release(each);
             }
         }
+    }
+    
+    @SneakyThrows
+    private Object decode(final int columnIndex, final String tableName, final String columnName) {
+        Object value = mergedResult.getValue(columnIndex, Object.class);
+        Optional<ShardingEncryptor> shardingEncryptor = ((ShardingSchema) logicSchema).getShardingRule().getShardingEncryptorEngine().getShardingEncryptor(tableName, columnName);
+        return shardingEncryptor.isPresent() ? shardingEncryptor.get().decrypt(value) : value;
     }
 }
