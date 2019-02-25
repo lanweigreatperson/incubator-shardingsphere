@@ -20,19 +20,24 @@ package org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.comm
 import com.google.common.base.Optional;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.shardingsphere.shardingproxy.backend.ResultPacket;
 import org.apache.shardingsphere.shardingproxy.backend.communication.DatabaseCommunicationEngine;
 import org.apache.shardingsphere.shardingproxy.backend.communication.DatabaseCommunicationEngineFactory;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
+import org.apache.shardingsphere.shardingproxy.backend.response.BackendResponse;
+import org.apache.shardingsphere.shardingproxy.backend.response.error.ErrorResponse;
+import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryData;
+import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryHeader;
+import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryResponse;
 import org.apache.shardingsphere.shardingproxy.runtime.GlobalRegistry;
 import org.apache.shardingsphere.shardingproxy.transport.common.packet.DatabasePacket;
 import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.CommandResponsePackets;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.query.DataHeaderPacket;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.query.QueryResponsePackets;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.generic.DatabaseFailurePacket;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.constant.PostgreSQLColumnType;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.PostgreSQLPacketPayload;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.PostgreSQLCommandPacketType;
-import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.query.PostgreSQLColumnDescription;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.query.PostgreSQLQueryCommandPacket;
-import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.query.PostgreSQLRowDescriptionPacket;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.query.binary.PostgreSQLBinaryStatement;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.query.binary.bind.protocol.PostgreSQLBinaryProtocolValue;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.command.query.binary.bind.protocol.PostgreSQLBinaryProtocolValueFactory;
@@ -41,6 +46,8 @@ import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.gener
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -60,11 +67,15 @@ public final class PostgreSQLComBindPacket implements PostgreSQLQueryCommandPack
     
     private DatabaseCommunicationEngine databaseCommunicationEngine;
     
+    @Getter
+    private final boolean binaryRowData;
+    
     public PostgreSQLComBindPacket(final PostgreSQLPacketPayload payload, final BackendConnection backendConnection) throws SQLException {
         payload.readInt4();
         payload.readStringNul();
         statementId = payload.readStringNul();
-        for (int i = 0; i < payload.readInt2(); i++) {
+        int parameterFormatsLength = payload.readInt2();
+        for (int i = 0; i < parameterFormatsLength; i++) {
             payload.readInt2();
         }
         binaryStatement = backendConnection.getConnectionScopeBinaryStatementRegistry().getBinaryStatement(statementId);
@@ -72,7 +83,9 @@ public final class PostgreSQLComBindPacket implements PostgreSQLQueryCommandPack
             databaseCommunicationEngine = DatabaseCommunicationEngineFactory.getInstance().newBinaryProtocolInstance(
                 backendConnection.getLogicSchema(), binaryStatement.getSql(), getParameters(payload), backendConnection);
         }
-        for (int i = 0; i < payload.readInt2(); i++) {
+        int resultFormatsLength = payload.readInt2();
+        binaryRowData = resultFormatsLength > 0;
+        for (int i = 0; i < resultFormatsLength; i++) {
             payload.readInt2();
         }
     }
@@ -100,38 +113,52 @@ public final class PostgreSQLComBindPacket implements PostgreSQLQueryCommandPack
         }
         CommandResponsePackets result = new CommandResponsePackets(new PostgreSQLBindCompletePacket());
         if (null != databaseCommunicationEngine) {
-            if ("SHOW TRANSACTION ISOLATION LEVEL".equals(binaryStatement.getSql())) {
-                PostgreSQLColumnDescription postgreSQLColumnDescription = new PostgreSQLColumnDescription("transaction_isolation", 0, 0, -1);
-                List<PostgreSQLColumnDescription> postgreSQLColumnDescriptions = new ArrayList<>(16);
-                postgreSQLColumnDescriptions.add(postgreSQLColumnDescription);
-                PostgreSQLRowDescriptionPacket postgreSQLRowDescriptionPacket = new PostgreSQLRowDescriptionPacket(1, postgreSQLColumnDescriptions);
-                List<Object> data = new ArrayList<>(1);
-                data.add("read committed");
-                PostgreSQLDataRowPacket postgreSQLDataRowPacket = new PostgreSQLDataRowPacket(data);
-                result.getPackets().add(postgreSQLRowDescriptionPacket);
-                result.getPackets().add(postgreSQLDataRowPacket);
-            } else {
-                result.getPackets().addAll(databaseCommunicationEngine.execute().getPackets());
+            BackendResponse backendResponse = databaseCommunicationEngine.execute();
+            if (backendResponse instanceof ErrorResponse) {
+                return Optional.of(new CommandResponsePackets(createDatabaseFailurePacket((ErrorResponse) backendResponse)));
             }
+            Collection<DataHeaderPacket> dataHeaderPackets = createDataHeaderPackets(((QueryResponse) backendResponse).getQueryHeaders());
+            return Optional.<CommandResponsePackets>of(new QueryResponsePackets(dataHeaderPackets, dataHeaderPackets.size() + 2));
         }
         return Optional.of(result);
     }
     
-    @Override
-    public boolean next() throws SQLException {
-        return databaseCommunicationEngine.next();
+    private DatabaseFailurePacket createDatabaseFailurePacket(final ErrorResponse errorResponse) {
+        return new DatabaseFailurePacket(1, errorResponse.getErrorCode(), errorResponse.getSqlState(), errorResponse.getErrorMessage());
+    }
+    
+    private Collection<DataHeaderPacket> createDataHeaderPackets(final List<QueryHeader> queryHeaders) {
+        Collection<DataHeaderPacket> result = new LinkedList<>();
+        int sequenceId = 1;
+        for (QueryHeader each : queryHeaders) {
+            result.add(createDataHeaderPacket(++sequenceId, each));
+        }
+        return result;
+    }
+    
+    private DataHeaderPacket createDataHeaderPacket(final int sequenceId, final QueryHeader queryHeader) {
+        return new DataHeaderPacket(sequenceId, queryHeader.getSchema(), queryHeader.getTable(), queryHeader.getTable(),
+            queryHeader.getColumnLabel(), queryHeader.getColumnName(), queryHeader.getColumnLength(), queryHeader.getColumnType(), queryHeader.getDecimals());
     }
     
     @Override
-    public DatabasePacket getResultValue() throws SQLException {
-        ResultPacket resultPacket = databaseCommunicationEngine.getResultValue();
-        int columnCount = resultPacket.getColumnCount();
-        List<Integer> jdbcColumnTypes = resultPacket.getColumnTypes();
-        List<PostgreSQLColumnType> columnTypes = new ArrayList<>(128);
-        for (int i = 0; i < columnCount; i++) {
-            columnTypes.add(PostgreSQLColumnType.valueOfJDBCType(jdbcColumnTypes.get(i)));
+    public boolean next() throws SQLException {
+        return null != databaseCommunicationEngine && databaseCommunicationEngine.next();
+    }
+    
+    @Override
+    public DatabasePacket getQueryData() throws SQLException {
+        QueryData queryData = databaseCommunicationEngine.getQueryData();
+        return binaryRowData
+                ? new PostgreSQLBinaryResultSetRowPacket(queryData.getData(), getPostgreSQLColumnTypes(queryData)) : new PostgreSQLDataRowPacket(queryData.getData());
+    }
+    
+    private List<PostgreSQLColumnType> getPostgreSQLColumnTypes(final QueryData queryData) {
+        List<PostgreSQLColumnType> result = new ArrayList<>(queryData.getColumnTypes().size());
+        for (int i = 0; i < queryData.getColumnTypes().size(); i++) {
+            result.add(PostgreSQLColumnType.valueOfJDBCType(queryData.getColumnTypes().get(i)));
         }
-        return new PostgreSQLBinaryResultSetRowPacket(resultPacket.getColumnCount(), resultPacket.getData(), columnTypes);
+        return result;
     }
     
     @Override

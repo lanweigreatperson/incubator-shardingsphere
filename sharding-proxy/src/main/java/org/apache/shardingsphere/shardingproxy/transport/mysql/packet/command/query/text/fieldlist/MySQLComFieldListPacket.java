@@ -23,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.shardingproxy.backend.communication.DatabaseCommunicationEngine;
 import org.apache.shardingsphere.shardingproxy.backend.communication.DatabaseCommunicationEngineFactory;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
+import org.apache.shardingsphere.shardingproxy.backend.response.BackendResponse;
+import org.apache.shardingsphere.shardingproxy.backend.response.error.ErrorResponse;
 import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.CommandResponsePackets;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.constant.MySQLColumnType;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.MySQLPacketPayload;
@@ -77,15 +79,22 @@ public final class MySQLComFieldListPacket implements MySQLCommandPacket {
     public Optional<CommandResponsePackets> execute() throws SQLException {
         log.debug("Table name received for Sharding-Proxy: {}", table);
         log.debug("Field wildcard received for Sharding-Proxy: {}", fieldWildcard);
-        CommandResponsePackets responsePackets = databaseCommunicationEngine.execute();
-        return Optional.of(responsePackets.getHeadPacket() instanceof MySQLErrPacket ? responsePackets : getColumnDefinition41Packets());
+        BackendResponse backendResponse = databaseCommunicationEngine.execute();
+        if (backendResponse instanceof ErrorResponse) {
+            return Optional.of(new CommandResponsePackets(createMySQLErrPacket((ErrorResponse) backendResponse)));
+        }
+        return Optional.of(getColumnDefinition41Packets());
+    }
+    
+    private MySQLErrPacket createMySQLErrPacket(final ErrorResponse errorResponse) {
+        return new MySQLErrPacket(1, errorResponse.getErrorCode(), errorResponse.getSqlState(), errorResponse.getErrorMessage());
     }
     
     private CommandResponsePackets getColumnDefinition41Packets() throws SQLException {
         CommandResponsePackets result = new CommandResponsePackets();
         int currentSequenceId = 0;
         while (databaseCommunicationEngine.next()) {
-            String columnName = databaseCommunicationEngine.getResultValue().getData().get(0).toString();
+            String columnName = databaseCommunicationEngine.getQueryData().getData().get(0).toString();
             result.getPackets().add(new MySQLColumnDefinition41Packet(++currentSequenceId, schemaName, table, table, columnName, columnName, 100, MySQLColumnType.MYSQL_TYPE_VARCHAR, 0));
         }
         result.getPackets().add(new MySQLEofPacket(++currentSequenceId));

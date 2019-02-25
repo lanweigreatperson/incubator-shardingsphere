@@ -20,13 +20,22 @@ package org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command.q
 import com.google.common.base.Optional;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.shardingsphere.shardingproxy.backend.ResultPacket;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
-import org.apache.shardingsphere.shardingproxy.backend.text.ComQueryBackendHandlerFactory;
+import org.apache.shardingsphere.shardingproxy.backend.response.BackendResponse;
+import org.apache.shardingsphere.shardingproxy.backend.response.error.ErrorResponse;
+import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryData;
+import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryHeader;
+import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryResponse;
+import org.apache.shardingsphere.shardingproxy.backend.response.update.UpdateResponse;
 import org.apache.shardingsphere.shardingproxy.backend.text.TextProtocolBackendHandler;
+import org.apache.shardingsphere.shardingproxy.backend.text.TextProtocolBackendHandlerFactory;
 import org.apache.shardingsphere.shardingproxy.runtime.GlobalRegistry;
 import org.apache.shardingsphere.shardingproxy.transport.common.packet.DatabasePacket;
 import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.CommandResponsePackets;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.query.DataHeaderPacket;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.command.query.QueryResponsePackets;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.generic.DatabaseFailurePacket;
+import org.apache.shardingsphere.shardingproxy.transport.common.packet.generic.DatabaseSuccessPacket;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.constant.MySQLServerErrorCode;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.MySQLPacketPayload;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command.MySQLCommandPacketType;
@@ -35,6 +44,8 @@ import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command.qu
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.MySQLErrPacket;
 
 import java.sql.SQLException;
+import java.util.Collection;
+import java.util.LinkedList;
 
 /**
  * MySQL COM_QUERY command packet.
@@ -54,10 +65,14 @@ public final class MySQLComPacketQuery implements MySQLQueryCommandPacket {
     
     private final TextProtocolBackendHandler textProtocolBackendHandler;
     
+    private int dataHeaderEofSequenceId;
+    
+    private int currentQueryDataSequenceId;
+    
     public MySQLComPacketQuery(final int sequenceId, final MySQLPacketPayload payload, final BackendConnection backendConnection) {
         this.sequenceId = sequenceId;
         sql = payload.readStringEOF();
-        textProtocolBackendHandler = ComQueryBackendHandlerFactory.createTextProtocolBackendHandler(sql, backendConnection);
+        textProtocolBackendHandler = TextProtocolBackendHandlerFactory.newInstance(sql, backendConnection);
     }
     
     public MySQLComPacketQuery(final int sequenceId, final String sql) {
@@ -75,8 +90,37 @@ public final class MySQLComPacketQuery implements MySQLQueryCommandPacket {
     @Override
     public Optional<CommandResponsePackets> execute() {
         log.debug("COM_QUERY received for Sharding-Proxy: {}", sql);
-        return GlobalRegistry.getInstance().isCircuitBreak()
-                ? Optional.of(new CommandResponsePackets(new MySQLErrPacket(1, MySQLServerErrorCode.ER_CIRCUIT_BREAK_MODE))) : Optional.of(textProtocolBackendHandler.execute());
+        if (GlobalRegistry.getInstance().isCircuitBreak()) {
+            return Optional.of(new CommandResponsePackets(new MySQLErrPacket(1, MySQLServerErrorCode.ER_CIRCUIT_BREAK_MODE)));
+        }
+        BackendResponse backendResponse = textProtocolBackendHandler.execute();
+        if (backendResponse instanceof ErrorResponse) {
+            return Optional.of(new CommandResponsePackets(createDatabaseFailurePacket((ErrorResponse) backendResponse)));
+        }
+        if (backendResponse instanceof UpdateResponse) {
+            return Optional.of(new CommandResponsePackets(createUpdatePacket((UpdateResponse) backendResponse)));
+        }
+        Collection<DataHeaderPacket> dataHeaderPackets = createDataHeaderPackets((QueryResponse) backendResponse);
+        dataHeaderEofSequenceId = dataHeaderPackets.size() + 2;
+        return Optional.<CommandResponsePackets>of(new QueryResponsePackets(dataHeaderPackets, dataHeaderEofSequenceId));
+    }
+    
+    private DatabaseFailurePacket createDatabaseFailurePacket(final ErrorResponse errorResponse) {
+        return new DatabaseFailurePacket(1, errorResponse.getErrorCode(), errorResponse.getSqlState(), errorResponse.getErrorMessage());
+    }
+    
+    private DatabaseSuccessPacket createUpdatePacket(final UpdateResponse updateResponse) {
+        return new DatabaseSuccessPacket(1, updateResponse.getUpdateCount(), updateResponse.getLastInsertId());
+    }
+    
+    private Collection<DataHeaderPacket> createDataHeaderPackets(final QueryResponse queryResponse) {
+        Collection<DataHeaderPacket> result = new LinkedList<>();
+        int sequenceId = 1;
+        for (QueryHeader each : queryResponse.getQueryHeaders()) {
+            result.add(new DataHeaderPacket(
+                    ++sequenceId, each.getSchema(), each.getTable(), each.getTable(), each.getColumnLabel(), each.getColumnName(), each.getColumnLength(), each.getColumnType(), each.getDecimals()));
+        }
+        return result;
     }
     
     @Override
@@ -85,8 +129,8 @@ public final class MySQLComPacketQuery implements MySQLQueryCommandPacket {
     }
     
     @Override
-    public DatabasePacket getResultValue() throws SQLException {
-        ResultPacket resultPacket = textProtocolBackendHandler.getResultValue();
-        return new MySQLTextResultSetRowPacket(resultPacket.getSequenceId(), resultPacket.getData());
+    public DatabasePacket getQueryData() throws SQLException {
+        QueryData queryData = textProtocolBackendHandler.getQueryData();
+        return new MySQLTextResultSetRowPacket(++currentQueryDataSequenceId + dataHeaderEofSequenceId, queryData.getData());
     }
 }
