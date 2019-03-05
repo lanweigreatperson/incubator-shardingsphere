@@ -33,6 +33,7 @@ import org.apache.shardingsphere.core.parsing.parser.sql.dql.DQLStatement;
 import org.apache.shardingsphere.core.parsing.parser.sql.dql.select.SelectStatement;
 import org.apache.shardingsphere.core.routing.PreparedStatementRoutingEngine;
 import org.apache.shardingsphere.core.routing.SQLRouteResult;
+import org.apache.shardingsphere.core.rule.ShardingRule;
 import org.apache.shardingsphere.shardingjdbc.executor.BatchPreparedStatementExecutor;
 import org.apache.shardingsphere.shardingjdbc.executor.PreparedStatementExecutor;
 import org.apache.shardingsphere.shardingjdbc.jdbc.adapter.AbstractShardingPreparedStatementAdapter;
@@ -129,7 +130,8 @@ public final class ShardingPreparedStatement extends AbstractShardingPreparedSta
         for (Statement each : preparedStatementExecutor.getStatements()) {
             ResultSet resultSet = each.getResultSet();
             resultSets.add(resultSet);
-            queryResults.add(new StreamQueryResult(resultSet, connection.getShardingContext().getShardingRule()));
+            ShardingRule shardingRule = connection.getShardingContext().getShardingRule();
+            queryResults.add(new StreamQueryResult(resultSet, shardingRule.getAllActualTableNames(), shardingRule.getShardingEncryptorEngine()));
         }
         if (routeResult.getSqlStatement() instanceof SelectStatement || routeResult.getSqlStatement() instanceof DALStatement) {
             MergeEngine mergeEngine = MergeEngineFactory.newInstance(connection.getShardingContext().getDatabaseType(),
@@ -153,9 +155,7 @@ public final class ShardingPreparedStatement extends AbstractShardingPreparedSta
             clearPrevious();
             sqlRoute();
             initPreparedStatementExecutor();
-            int result = preparedStatementExecutor.executeUpdate();
-            refreshTableMetaData(connection.getShardingContext(), routeResult.getSqlStatement());
-            return result;
+            return preparedStatementExecutor.executeUpdate();
         } finally {
             clearBatch();
         }
@@ -167,9 +167,7 @@ public final class ShardingPreparedStatement extends AbstractShardingPreparedSta
             clearPrevious();
             sqlRoute();
             initPreparedStatementExecutor();
-            boolean result = preparedStatementExecutor.execute();
-            refreshTableMetaData(connection.getShardingContext(), routeResult.getSqlStatement());
-            return result;
+            return preparedStatementExecutor.execute();
         } finally {
             clearBatch();
         }

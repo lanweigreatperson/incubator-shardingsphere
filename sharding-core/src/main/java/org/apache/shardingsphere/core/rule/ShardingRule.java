@@ -17,10 +17,12 @@
 
 package org.apache.shardingsphere.core.rule;
 
+import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import lombok.Getter;
 import org.apache.shardingsphere.api.config.masterslave.MasterSlaveRuleConfiguration;
 import org.apache.shardingsphere.api.config.sharding.KeyGeneratorConfiguration;
@@ -28,6 +30,7 @@ import org.apache.shardingsphere.api.config.sharding.ShardingRuleConfiguration;
 import org.apache.shardingsphere.api.config.sharding.TableRuleConfiguration;
 import org.apache.shardingsphere.api.config.sharding.strategy.ShardingStrategyConfiguration;
 import org.apache.shardingsphere.core.encrypt.ShardingEncryptorEngine;
+import org.apache.shardingsphere.core.encrypt.ShardingEncryptorStrategy;
 import org.apache.shardingsphere.core.exception.ShardingConfigurationException;
 import org.apache.shardingsphere.core.exception.ShardingException;
 import org.apache.shardingsphere.core.keygen.ShardingKeyGeneratorFactory;
@@ -41,8 +44,10 @@ import org.apache.shardingsphere.spi.algorithm.keygen.ShardingKeyGenerator;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -53,7 +58,7 @@ import java.util.TreeSet;
  * @author panjuan
  */
 @Getter
-public class ShardingRule {
+public class ShardingRule implements SQLStatementFillerRule {
     
     private final ShardingRuleConfiguration shardingRuleConfig;
     
@@ -88,7 +93,7 @@ public class ShardingRule {
         defaultTableShardingStrategy = createDefaultShardingStrategy(shardingRuleConfig.getDefaultTableShardingStrategyConfig());
         defaultShardingKeyGenerator = createDefaultKeyGenerator(shardingRuleConfig.getDefaultKeyGeneratorConfig());
         masterSlaveRules = createMasterSlaveRules(shardingRuleConfig.getMasterSlaveRuleConfigs());
-        shardingEncryptorEngine = new ShardingEncryptorEngine(tableRules);
+        shardingEncryptorEngine = new ShardingEncryptorEngine(getShardingEncryptorStrategies());
     }
     
     private Collection<TableRule> createTableRules(final ShardingRuleConfiguration shardingRuleConfig) {
@@ -138,6 +143,14 @@ public class ShardingRule {
         Collection<MasterSlaveRule> result = new ArrayList<>(masterSlaveRuleConfigurations.size());
         for (MasterSlaveRuleConfiguration each : masterSlaveRuleConfigurations) {
             result.add(new MasterSlaveRule(each));
+        }
+        return result;
+    }
+    
+    private Map<String, ShardingEncryptorStrategy> getShardingEncryptorStrategies() {
+        Map<String, ShardingEncryptorStrategy> result = new LinkedHashMap<>();
+        for (TableRule each : tableRules) {
+            result.put(each.getLogicTable(), each.getShardingEncryptorStrategy());
         }
         return result;
     }
@@ -267,7 +280,7 @@ public class ShardingRule {
     /**
      * Judge logic tables is all belong to broadcast tables.
      *
-     * @param logicTableNames  logic table names
+     * @param logicTableNames logic table names
      * @return logic tables is all belong to broadcast tables or not
      */
     public boolean isAllBroadcastTables(final Collection<String> logicTableNames) {
@@ -393,6 +406,25 @@ public class ShardingRule {
     }
     
     /**
+     * Get all actual table names.
+     *
+     * @return all actual table names
+     */
+    public Map<String, Collection<String>> getAllActualTableNames() {
+        Map<String, Collection<String>> result = new LinkedHashMap<>();
+        for (TableRule each : tableRules) {
+            result.put(each.getLogicTable(), Lists.transform(each.getActualDataNodes(), new Function<DataNode, String>() {
+                
+                @Override
+                public String apply(final DataNode input) {
+                    return input.getTableName();
+                }
+            }));
+        }
+        return result;
+    }
+    
+    /**
      * Find data node by logic table name.
      *
      * @param logicTableName logic table name
@@ -479,7 +511,7 @@ public class ShardingRule {
     
     /**
      * Judge contains table in sharding rule.
-     * 
+     *
      * @param logicTableName logic table name
      * @return contains table in sharding rule or not
      */
@@ -489,7 +521,7 @@ public class ShardingRule {
     
     /**
      * Get sharding logic table names.
-     * 
+     *
      * @param logicTableNames logic table names
      * @return sharding logic table names
      */
@@ -506,7 +538,7 @@ public class ShardingRule {
     
     /**
      * Is routing by hint.
-     * 
+     *
      * @param tableRule table rule
      * @return route by hint is true
      */
