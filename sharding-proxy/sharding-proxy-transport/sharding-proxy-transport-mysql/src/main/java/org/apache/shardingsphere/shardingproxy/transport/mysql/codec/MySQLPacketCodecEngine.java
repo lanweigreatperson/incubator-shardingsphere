@@ -19,24 +19,18 @@ package org.apache.shardingsphere.shardingproxy.transport.mysql.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.apache.shardingsphere.core.constant.DatabaseType;
+import org.apache.shardingsphere.shardingproxy.transport.codec.DatabasePacketCodecEngine;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.MySQLPacket;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.payload.MySQLPacketPayload;
-import org.apache.shardingsphere.shardingproxy.transport.spi.DatabasePacketCodecEngine;
 
 import java.util.List;
 
 /**
- * MySQL packet codec.
+ * Database packet codec for MySQL.
  * 
  * @author zhangliang 
  */
 public final class MySQLPacketCodecEngine implements DatabasePacketCodecEngine<MySQLPacket> {
-    
-    @Override
-    public String getDatabaseType() {
-        return DatabaseType.MySQL.name();
-    }
     
     @Override
     public boolean isValidHeader(final int readableBytes) {
@@ -62,5 +56,10 @@ public final class MySQLPacketCodecEngine implements DatabasePacketCodecEngine<M
             out.writeByte(message.getSequenceId());
             out.writeBytes(payload.getByteBuf());
         }
+    }
+    
+    @Override
+    public MySQLPacketPayload createPacketPayload(final ByteBuf message) {
+        return new MySQLPacketPayload(message);
     }
 }

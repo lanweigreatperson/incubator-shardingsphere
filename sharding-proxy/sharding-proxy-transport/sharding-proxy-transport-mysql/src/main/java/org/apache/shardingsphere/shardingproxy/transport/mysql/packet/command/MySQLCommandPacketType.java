@@ -19,15 +19,16 @@ package org.apache.shardingsphere.shardingproxy.transport.mysql.packet.command;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.shardingproxy.transport.packet.CommandPacketType;
 
 /**
- * MySQL command packet type.
+ * Command packet type for MySQL.
  *
  * @author zhangliang
  */
 @RequiredArgsConstructor
 @Getter
-public enum MySQLCommandPacketType {
+public enum MySQLCommandPacketType implements CommandPacketType {
     
     /**
      * COM_SLEEP.

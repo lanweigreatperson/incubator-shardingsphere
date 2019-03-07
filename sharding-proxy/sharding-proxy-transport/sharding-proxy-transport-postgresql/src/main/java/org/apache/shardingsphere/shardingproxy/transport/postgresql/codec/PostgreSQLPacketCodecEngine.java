@@ -19,25 +19,19 @@ package org.apache.shardingsphere.shardingproxy.transport.postgresql.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.apache.shardingsphere.core.constant.DatabaseType;
+import org.apache.shardingsphere.shardingproxy.transport.codec.DatabasePacketCodecEngine;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.PostgreSQLPacket;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.handshake.PostgreSQLSSLNegativePacket;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.payload.PostgreSQLPacketPayload;
-import org.apache.shardingsphere.shardingproxy.transport.spi.DatabasePacketCodecEngine;
 
 import java.util.List;
 
 /**
- * PostgreSQL packet codec.
+ * Database packet codec for MySQL.
  *
  * @author zhangyonglun
  */
 public final class PostgreSQLPacketCodecEngine implements DatabasePacketCodecEngine<PostgreSQLPacket> {
-    
-    @Override
-    public String getDatabaseType() {
-        return DatabaseType.PostgreSQL.name();
-    }
     
     @Override
     public boolean isValidHeader(final int readableBytes) {
@@ -72,5 +66,10 @@ public final class PostgreSQLPacketCodecEngine implements DatabasePacketCodecEng
             }
             out.writeBytes(payload.getByteBuf());
         }
+    }
+    
+    @Override
+    public PostgreSQLPacketPayload createPacketPayload(final ByteBuf message) {
+        return new PostgreSQLPacketPayload(message);
     }
 }

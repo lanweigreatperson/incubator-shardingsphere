@@ -17,11 +17,11 @@
 
 package org.apache.shardingsphere.shardingproxy.transport.mysql.packet;
 
-import org.apache.shardingsphere.shardingproxy.transport.api.packet.DatabasePacket;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.payload.MySQLPacketPayload;
+import org.apache.shardingsphere.shardingproxy.transport.packet.DatabasePacket;
 
 /**
- * MySQL packet.
+ * Database packet for MySQL.
  *
  * @author zhangliang
  */

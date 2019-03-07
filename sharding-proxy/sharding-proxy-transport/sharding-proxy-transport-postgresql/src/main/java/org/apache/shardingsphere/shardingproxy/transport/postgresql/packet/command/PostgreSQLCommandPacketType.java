@@ -19,15 +19,16 @@ package org.apache.shardingsphere.shardingproxy.transport.postgresql.packet.comm
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.shardingproxy.transport.packet.CommandPacketType;
 
 /**
- * PostgreSQL command packet type.
+ * Command packet type for PostgreSQL.
  *
  * @author zhangyonglun
  */
 @RequiredArgsConstructor
 @Getter
-public enum PostgreSQLCommandPacketType {
+public enum PostgreSQLCommandPacketType implements CommandPacketType {
     
     AUTHENTICATION_OK('R'),
     

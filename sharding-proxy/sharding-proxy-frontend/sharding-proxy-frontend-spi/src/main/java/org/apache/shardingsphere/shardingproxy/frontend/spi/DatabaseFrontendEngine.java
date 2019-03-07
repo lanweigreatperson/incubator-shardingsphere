@@ -17,9 +17,11 @@
 
 package org.apache.shardingsphere.shardingproxy.frontend.spi;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
+import org.apache.shardingsphere.shardingproxy.frontend.context.FrontendContext;
+import org.apache.shardingsphere.shardingproxy.frontend.engine.AuthenticationEngine;
+import org.apache.shardingsphere.shardingproxy.frontend.engine.CommandExecuteEngine;
+import org.apache.shardingsphere.shardingproxy.transport.codec.DatabasePacketCodecEngine;
 
 /**
  * Database frontend engine.
@@ -36,38 +38,32 @@ public interface DatabaseFrontendEngine {
     String getDatabaseType();
     
     /**
-     * Judge is occupy thread for per connection.
-     * 
-     * @return is occupy thread for per connection or not
+     * Get frontend context.
+     *
+     * @return frontend context
      */
-    boolean isOccupyThreadForPerConnection();
+    FrontendContext getFrontendContext();
     
     /**
-     * Handshake.
+     * Get database packet codec engine.
      * 
-     * @param context channel handler context
-     * @param backendConnection backend connection
+     * @return database packet codec engine
      */
-    void handshake(ChannelHandlerContext context, BackendConnection backendConnection);
+    DatabasePacketCodecEngine getCodecEngine();
     
     /**
-     * Auth.
+     * Get authentication engine.
      * 
-     * @param context channel handler context
-     * @param message message
-     * @param backendConnection backend connection
-     * @return auth finish or not
+     * @return authentication engine
      */
-    boolean auth(ChannelHandlerContext context, ByteBuf message, BackendConnection backendConnection);
+    AuthenticationEngine getAuthEngine();
     
     /**
-     * Execute command.
+     * Get command execute engine.
      * 
-     * @param context channel handler context
-     * @param message message
-     * @param backendConnection backend connection
+     * @return command execute engine
      */
-    void executeCommand(ChannelHandlerContext context, ByteBuf message, BackendConnection backendConnection);
+    CommandExecuteEngine getCommandExecuteEngine();
     
     /**
      * Release resource.
