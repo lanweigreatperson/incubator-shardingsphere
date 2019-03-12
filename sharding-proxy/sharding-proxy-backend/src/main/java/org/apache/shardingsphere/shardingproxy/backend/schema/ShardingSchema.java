@@ -22,6 +22,10 @@ import lombok.Getter;
 import org.apache.shardingsphere.api.config.sharding.ShardingRuleConfiguration;
 import org.apache.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
 import org.apache.shardingsphere.core.metadata.ShardingMetaData;
+import org.apache.shardingsphere.core.parsing.antlr.sql.statement.ddl.AlterTableStatement;
+import org.apache.shardingsphere.core.parsing.antlr.sql.statement.ddl.CreateTableStatement;
+import org.apache.shardingsphere.core.parsing.antlr.sql.statement.ddl.DropTableStatement;
+import org.apache.shardingsphere.core.parsing.parser.sql.SQLStatement;
 import org.apache.shardingsphere.core.rule.MasterSlaveRule;
 import org.apache.shardingsphere.core.rule.ShardingRule;
 import org.apache.shardingsphere.orchestration.internal.registry.config.event.ShardingRuleChangedEvent;
@@ -29,10 +33,11 @@ import org.apache.shardingsphere.orchestration.internal.registry.state.event.Dis
 import org.apache.shardingsphere.orchestration.internal.registry.state.schema.OrchestrationShardingSchema;
 import org.apache.shardingsphere.orchestration.internal.rule.OrchestrationMasterSlaveRule;
 import org.apache.shardingsphere.orchestration.internal.rule.OrchestrationShardingRule;
+import org.apache.shardingsphere.shardingproxy.backend.executor.BackendExecutorContext;
 import org.apache.shardingsphere.shardingproxy.config.yaml.YamlDataSourceParameter;
-import org.apache.shardingsphere.shardingproxy.context.ExecutorContext;
-import org.apache.shardingsphere.shardingproxy.context.GlobalContext;
+import org.apache.shardingsphere.shardingproxy.context.ShardingProxyContext;
 
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -65,8 +70,8 @@ public final class ShardingSchema extends LogicSchema {
     
     private ShardingMetaData createShardingMetaData(final boolean isCheckingMetaData) {
         return new ShardingMetaData(getDataSourceURLs(getDataSources()), shardingRule, LogicSchemas.getInstance().getDatabaseType(),
-                ExecutorContext.getInstance().getExecuteEngine(), new ProxyTableMetaDataConnectionManager(getBackendDataSource()), 
-                GlobalContext.getInstance().getShardingProperties().<Integer>getValue(ShardingPropertiesConstant.MAX_CONNECTIONS_SIZE_PER_QUERY), isCheckingMetaData);
+                BackendExecutorContext.getInstance().getExecuteEngine(), new ProxyTableMetaDataConnectionManager(getBackendDataSource()), 
+                ShardingProxyContext.getInstance().getShardingProperties().<Integer>getValue(ShardingPropertiesConstant.MAX_CONNECTIONS_SIZE_PER_QUERY), isCheckingMetaData);
     }
     
     /**
@@ -93,6 +98,33 @@ public final class ShardingSchema extends LogicSchema {
             for (MasterSlaveRule each : shardingRule.getMasterSlaveRules()) {
                 ((OrchestrationMasterSlaveRule) each).updateDisabledDataSourceNames(shardingSchema.getDataSourceName(), disabledStateChangedEvent.isDisabled());
             }
+        }
+    }
+    
+    @Override
+    public void refreshTableMetaData(final SQLStatement sqlStatement) throws SQLException {
+        if (sqlStatement instanceof CreateTableStatement) {
+            refreshTableMetaData((CreateTableStatement) sqlStatement);
+        } else if (sqlStatement instanceof AlterTableStatement) {
+            refreshTableMetaData((AlterTableStatement) sqlStatement);
+        } else if (sqlStatement instanceof DropTableStatement) {
+            refreshTableMetaData((DropTableStatement) sqlStatement);
+        }
+    }
+    
+    private void refreshTableMetaData(final CreateTableStatement createTableStatement) throws SQLException {
+        String tableName = createTableStatement.getTables().getSingleTableName();
+        getMetaData().getTable().put(tableName, getMetaData().getTableInitialize().getTableMetaDataLoader().load(tableName, shardingRule));
+    }
+    
+    private void refreshTableMetaData(final AlterTableStatement alterTableStatement) throws SQLException {
+        String tableName = alterTableStatement.getTables().getSingleTableName();
+        getMetaData().getTable().put(tableName, getMetaData().getTableInitialize().getTableMetaDataLoader().load(tableName, shardingRule));
+    }
+    
+    private void refreshTableMetaData(final DropTableStatement dropTableStatement) {
+        for (String each : dropTableStatement.getTables().getTableNames()) {
+            getMetaData().getTable().remove(each);
         }
     }
 }

@@ -27,7 +27,7 @@ import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryData;
 import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryHeader;
 import org.apache.shardingsphere.shardingproxy.backend.response.query.QueryResponse;
 import org.apache.shardingsphere.shardingproxy.backend.response.update.UpdateResponse;
-import org.apache.shardingsphere.shardingproxy.context.GlobalContext;
+import org.apache.shardingsphere.shardingproxy.context.ShardingProxyContext;
 import org.apache.shardingsphere.shardingproxy.frontend.api.QueryCommandExecutor;
 import org.apache.shardingsphere.shardingproxy.transport.packet.DatabasePacket;
 import org.apache.shardingsphere.shardingproxy.transport.postgresql.constant.PostgreSQLColumnType;
@@ -70,7 +70,7 @@ public final class PostgreSQLComBindExecutor implements QueryCommandExecutor {
     
     @Override
     public Collection<DatabasePacket> execute() {
-        if (GlobalContext.getInstance().isCircuitBreak()) {
+        if (ShardingProxyContext.getInstance().isCircuitBreak()) {
             return Collections.<DatabasePacket>singletonList(new PostgreSQLErrorResponsePacket());
         }
         List<DatabasePacket> result = new LinkedList<>();
@@ -115,7 +115,7 @@ public final class PostgreSQLComBindExecutor implements QueryCommandExecutor {
         List<PostgreSQLColumnDescription> result = new LinkedList<>();
         int columnIndex = 0;
         for (QueryHeader each : queryResponse.getQueryHeaders()) {
-            result.add(new PostgreSQLColumnDescription(each, ++columnIndex));
+            result.add(new PostgreSQLColumnDescription(each.getColumnName(), ++columnIndex, each.getColumnType(), each.getColumnLength()));
         }
         return result;
     }

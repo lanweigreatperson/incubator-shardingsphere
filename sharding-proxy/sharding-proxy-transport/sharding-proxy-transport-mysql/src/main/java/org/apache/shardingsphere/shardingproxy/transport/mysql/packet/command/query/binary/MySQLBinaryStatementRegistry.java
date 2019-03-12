@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Binary prepared statement registry for MySQL.
+ * MySQL binary prepared statement registry.
  *
  * @author zhangliang
  * @author zhangyonglun
@@ -44,7 +44,7 @@ public final class MySQLBinaryStatementRegistry {
     
     /**
      * Get prepared statement registry instance.
-     * 
+     *
      * @return prepared statement registry instance
      */
     public static MySQLBinaryStatementRegistry getInstance() {
@@ -53,12 +53,12 @@ public final class MySQLBinaryStatementRegistry {
     
     /**
      * Register SQL.
-     * 
+     *
      * @param sql SQL
      * @param parametersCount parameters count
      * @return statement ID
      */
-    public int register(final String sql, final int parametersCount) {
+    public synchronized int register(final String sql, final int parametersCount) {
         Integer result = statementIdAssigner.get(sql);
         if (null != result) {
             return result;
@@ -84,7 +84,7 @@ public final class MySQLBinaryStatementRegistry {
      *
      * @param statementId statement ID
      */
-    public void remove(final int statementId) {
+    public synchronized void remove(final int statementId) {
         MySQLBinaryStatement binaryStatement = getBinaryStatement(statementId);
         if (null != binaryStatement) {
             statementIdAssigner.remove(binaryStatement.getSql());

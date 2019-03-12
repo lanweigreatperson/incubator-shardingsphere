@@ -21,7 +21,7 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.SneakyThrows;
 import org.apache.shardingsphere.core.rule.Authentication;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
-import org.apache.shardingsphere.shardingproxy.context.GlobalContext;
+import org.apache.shardingsphere.shardingproxy.context.ShardingProxyContext;
 import org.apache.shardingsphere.shardingproxy.frontend.ConnectionIdGenerator;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.MySQLErrPacket;
 import org.apache.shardingsphere.shardingproxy.transport.mysql.packet.generic.MySQLOKPacket;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 @RunWith(MockitoJUnitRunner.class)
 public final class MySQLFrontendEngineTest {
     
-    private MySQLFrontendEngine mysqlFrontendEngine;
+    private MySQLProtocolFrontendEngine mysqlFrontendEngine;
     
     @Mock
     private ChannelHandlerContext context;
@@ -58,7 +58,7 @@ public final class MySQLFrontendEngineTest {
         Field field = ConnectionIdGenerator.class.getDeclaredField("currentId");
         field.setAccessible(true);
         field.set(ConnectionIdGenerator.getInstance(), 0);
-        mysqlFrontendEngine = new MySQLFrontendEngine();
+        mysqlFrontendEngine = new MySQLProtocolFrontendEngine();
     }
     
     @Test
@@ -88,8 +88,8 @@ public final class MySQLFrontendEngineTest {
     
     @SneakyThrows
     private void setAuthentication(final Object value) {
-        Field field = GlobalContext.class.getDeclaredField("authentication");
+        Field field = ShardingProxyContext.class.getDeclaredField("authentication");
         field.setAccessible(true);
-        field.set(GlobalContext.getInstance(), value);
+        field.set(ShardingProxyContext.getInstance(), value);
     }
 }
