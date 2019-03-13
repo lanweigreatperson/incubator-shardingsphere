@@ -19,10 +19,12 @@ package org.apache.shardingsphere.core;
 
 import org.apache.shardingsphere.core.config.AllConfigTests;
 import org.apache.shardingsphere.core.constant.AllConstantsTests;
+import org.apache.shardingsphere.core.metadata.AllMetaDataTests;
 import org.apache.shardingsphere.core.rule.AllRuleTests;
 import org.apache.shardingsphere.core.spi.AllSPITests;
 import org.apache.shardingsphere.core.strategy.AllStrategyTests;
 import org.apache.shardingsphere.core.util.AllUtilTests;
+import org.apache.shardingsphere.core.yaml.AllYamlTests;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -34,6 +36,8 @@ import org.junit.runners.Suite.SuiteClasses;
         AllStrategyTests.class,
         AllSPITests.class,
         AllRuleTests.class,
+        AllMetaDataTests.class,
+        AllYamlTests.class,
         AllUtilTests.class
 })
 public final class AllCoreTests {
