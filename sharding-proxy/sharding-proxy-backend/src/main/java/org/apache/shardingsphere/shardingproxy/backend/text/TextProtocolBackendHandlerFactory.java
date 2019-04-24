@@ -21,14 +21,12 @@ import com.google.common.base.Optional;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.apache.shardingsphere.core.constant.SQLType;
-import org.apache.shardingsphere.core.parsing.SQLJudgeEngine;
-import org.apache.shardingsphere.core.parsing.parser.dialect.mysql.statement.ShowDatabasesStatement;
-import org.apache.shardingsphere.core.parsing.parser.dialect.mysql.statement.UseStatement;
-import org.apache.shardingsphere.core.parsing.parser.sql.SQLStatement;
-import org.apache.shardingsphere.core.parsing.parser.sql.dal.set.SetStatement;
+import org.apache.shardingsphere.core.parse.SQLJudgeEngine;
+import org.apache.shardingsphere.core.parse.antlr.sql.statement.SQLStatement;
+import org.apache.shardingsphere.core.parse.old.parser.dialect.mysql.statement.ShowDatabasesStatement;
+import org.apache.shardingsphere.core.parse.old.parser.dialect.mysql.statement.UseStatement;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
 import org.apache.shardingsphere.shardingproxy.backend.text.admin.BroadcastBackendHandler;
-import org.apache.shardingsphere.shardingproxy.backend.text.admin.GUICompatibilityBackendHandler;
 import org.apache.shardingsphere.shardingproxy.backend.text.admin.ShowDatabasesBackendHandler;
 import org.apache.shardingsphere.shardingproxy.backend.text.admin.UnicastBackendHandler;
 import org.apache.shardingsphere.shardingproxy.backend.text.admin.UseDatabaseBackendHandler;
@@ -51,7 +49,7 @@ public final class TextProtocolBackendHandlerFactory {
     
     private static final String SET_AUTOCOMMIT_1 = "SET AUTOCOMMIT=1";
     
-    private static final List<String> GUI_SQL = Arrays.asList("SET NAMES", "SHOW VARIABLES LIKE", "SHOW CHARACTER SET", "SHOW COLLATION");
+    private static final List<String> GUI_SQL = Arrays.asList("SET", "SHOW VARIABLES LIKE", "SHOW CHARACTER SET", "SHOW COLLATION");
     
     /**
      * Create new instance of text protocol backend handler.
@@ -77,21 +75,17 @@ public final class TextProtocolBackendHandlerFactory {
     }
     
     private static TextProtocolBackendHandler createDALBackendHandler(final SQLStatement sqlStatement, final String sql, final BackendConnection backendConnection) {
-        if (null == backendConnection.getLogicSchema()) {
-            for (String each : GUI_SQL) {
-                if (sql.toUpperCase().startsWith(each)) {
-                    return new GUICompatibilityBackendHandler();
-                }
+        // TODO we should refactor the broadcast logic in future, exclude those broadcast SQL temporary.
+        for (String each : GUI_SQL) {
+            if (sql.toUpperCase().startsWith(each)) {
+                return new BroadcastBackendHandler(sql, backendConnection);
             }
-        }
-        if (sqlStatement instanceof SetStatement) {
-            return new BroadcastBackendHandler(sql, backendConnection);
         }
         if (sqlStatement instanceof UseStatement) {
             return new UseDatabaseBackendHandler((UseStatement) sqlStatement, backendConnection);
         }
         if (sqlStatement instanceof ShowDatabasesStatement) {
-            return new ShowDatabasesBackendHandler();
+            return new ShowDatabasesBackendHandler(backendConnection);
         }
         return new UnicastBackendHandler(sql, backendConnection);
     }

@@ -19,7 +19,6 @@ package org.apache.shardingsphere.shardingproxy.config;
 
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import org.apache.shardingsphere.core.yaml.engine.YamlEngine;
 import org.apache.shardingsphere.shardingproxy.config.yaml.YamlProxyRuleConfiguration;
 import org.apache.shardingsphere.shardingproxy.config.yaml.YamlProxyServerConfiguration;
@@ -76,7 +75,7 @@ public final class ShardingConfigurationLoader {
     private YamlProxyServerConfiguration loadServerConfiguration(final File yamlFile) throws IOException {
         YamlProxyServerConfiguration result = YamlEngine.unmarshal(yamlFile, YamlProxyServerConfiguration.class);
         Preconditions.checkNotNull(result, "Server configuration file `%s` is invalid.", yamlFile.getName());
-        Preconditions.checkState(!Strings.isNullOrEmpty(result.getAuthentication().getUsername()) || null != result.getOrchestration(), "Authority configuration is invalid.");
+        Preconditions.checkState(null != result.getAuthentication() || null != result.getOrchestration(), "Authority configuration is invalid.");
         return result;
     }
     
@@ -87,8 +86,6 @@ public final class ShardingConfigurationLoader {
         }
         Preconditions.checkNotNull(result.getSchemaName(), "Property `schemaName` in file `%s` is required.", yamlFile.getName());
         Preconditions.checkState(!result.getDataSources().isEmpty(), "Data sources configuration in file `%s` is required.", yamlFile.getName());
-        Preconditions.checkState(null != result.getShardingRule() || null != result.getMasterSlaveRule() || null != serverConfiguration.getOrchestration(),
-                "Configuration invalid in file `%s`, local and orchestration configuration are required at least one.", yamlFile.getName());
         return Optional.of(result);
     }
     

@@ -20,8 +20,8 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.apache.shardingsphere</groupId>
-        <artifactId>sharding-sphere</artifactId>
-        <version>4.0.0-RC1-SNAPSHOT</version>
+        <artifactId>shardingsphere</artifactId>
+        <version>4.0.0-RC2-SNAPSHOT</version>
     </parent>
     <artifactId>sharding-transaction</artifactId>
     <name>${project.artifactId}</name>
@@ -36,25 +36,8 @@
     <dependencies>
         <dependency>
             <groupId>org.apache.shardingsphere</groupId>
-            <artifactId>sharding-core-rest</artifactId>
+            <artifactId>sharding-core-entry</artifactId>
             <version>${project.parent.version}</version>
-        </dependency>
-        
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
         </dependency>
     </dependencies>
 </project>

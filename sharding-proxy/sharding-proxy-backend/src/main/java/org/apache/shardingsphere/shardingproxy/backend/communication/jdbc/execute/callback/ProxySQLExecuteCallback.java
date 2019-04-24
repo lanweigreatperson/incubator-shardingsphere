@@ -18,11 +18,11 @@
 package org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.execute.callback;
 
 import org.apache.shardingsphere.core.constant.ConnectionMode;
-import org.apache.shardingsphere.core.executor.sql.execute.SQLExecuteCallback;
-import org.apache.shardingsphere.core.executor.sql.execute.result.MemoryQueryResult;
-import org.apache.shardingsphere.core.executor.sql.execute.result.StreamQueryResult;
-import org.apache.shardingsphere.core.merger.QueryResult;
-import org.apache.shardingsphere.core.routing.RouteUnit;
+import org.apache.shardingsphere.core.execute.sql.execute.SQLExecuteCallback;
+import org.apache.shardingsphere.core.execute.sql.execute.result.MemoryQueryResult;
+import org.apache.shardingsphere.core.execute.sql.execute.result.QueryResult;
+import org.apache.shardingsphere.core.execute.sql.execute.result.StreamQueryResult;
+import org.apache.shardingsphere.core.route.RouteUnit;
 import org.apache.shardingsphere.core.rule.ShardingRule;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.execute.response.ExecuteQueryResponse;
@@ -34,6 +34,7 @@ import org.apache.shardingsphere.shardingproxy.backend.schema.LogicSchema;
 import org.apache.shardingsphere.shardingproxy.backend.schema.LogicSchemas;
 import org.apache.shardingsphere.shardingproxy.backend.schema.MasterSlaveSchema;
 import org.apache.shardingsphere.shardingproxy.backend.schema.ShardingSchema;
+import org.apache.shardingsphere.shardingproxy.backend.schema.TransparentSchema;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -98,12 +99,12 @@ public final class ProxySQLExecuteCallback extends SQLExecuteCallback<ExecuteRes
     
     private QueryResult createQueryResult(final ResultSet resultSet, final ConnectionMode connectionMode) {
         LogicSchema logicSchema = backendConnection.getLogicSchema();
-        if (logicSchema instanceof MasterSlaveSchema) {
+        if (logicSchema instanceof MasterSlaveSchema || logicSchema instanceof TransparentSchema) {
             return connectionMode == ConnectionMode.MEMORY_STRICTLY ? new StreamQueryResult(resultSet) : new MemoryQueryResult(resultSet);
         }
         ShardingRule shardingRule = ((ShardingSchema) logicSchema).getShardingRule();
-        return connectionMode == ConnectionMode.MEMORY_STRICTLY ? new StreamQueryResult(resultSet, shardingRule.getAllActualTableNames(), shardingRule.getShardingEncryptorEngine()) 
-                : new MemoryQueryResult(resultSet, shardingRule.getAllActualTableNames(), shardingRule.getShardingEncryptorEngine());
+        return connectionMode == ConnectionMode.MEMORY_STRICTLY ? new StreamQueryResult(resultSet, shardingRule, shardingRule.getShardingEncryptorEngine()) 
+                : new MemoryQueryResult(resultSet, shardingRule, shardingRule.getShardingEncryptorEngine());
     }
     
     private long getGeneratedKey(final Statement statement) throws SQLException {

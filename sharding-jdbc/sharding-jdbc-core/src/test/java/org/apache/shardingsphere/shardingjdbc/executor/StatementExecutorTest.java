@@ -20,12 +20,12 @@ package org.apache.shardingsphere.shardingjdbc.executor;
 import lombok.SneakyThrows;
 import org.apache.shardingsphere.core.constant.ConnectionMode;
 import org.apache.shardingsphere.core.constant.SQLType;
-import org.apache.shardingsphere.core.executor.ShardingExecuteGroup;
-import org.apache.shardingsphere.core.executor.StatementExecuteUnit;
-import org.apache.shardingsphere.core.executor.sql.execute.threadlocal.ExecutorExceptionHandler;
-import org.apache.shardingsphere.core.merger.QueryResult;
-import org.apache.shardingsphere.core.routing.RouteUnit;
-import org.apache.shardingsphere.core.routing.SQLUnit;
+import org.apache.shardingsphere.core.execute.ShardingExecuteGroup;
+import org.apache.shardingsphere.core.execute.StatementExecuteUnit;
+import org.apache.shardingsphere.core.execute.sql.execute.result.QueryResult;
+import org.apache.shardingsphere.core.execute.sql.execute.threadlocal.ExecutorExceptionHandler;
+import org.apache.shardingsphere.core.route.RouteUnit;
+import org.apache.shardingsphere.core.route.SQLUnit;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -79,6 +79,7 @@ public final class StatementExecutorTest extends AbstractBaseExecutorTest {
         ResultSet resultSet = mock(ResultSet.class);
         ResultSetMetaData resultSetMetaData = mock(ResultSetMetaData.class);
         when(resultSetMetaData.getColumnName(1)).thenReturn("column");
+        when(resultSetMetaData.getColumnLabel(1)).thenReturn("column");
         when(resultSetMetaData.getTableName(1)).thenReturn("table_x");
         when(resultSetMetaData.getColumnCount()).thenReturn(1);
         when(resultSet.getString(1)).thenReturn("value");
@@ -97,6 +98,7 @@ public final class StatementExecutorTest extends AbstractBaseExecutorTest {
         ResultSet resultSet2 = mock(ResultSet.class);
         ResultSetMetaData resultSetMetaData = mock(ResultSetMetaData.class);
         when(resultSetMetaData.getColumnName(1)).thenReturn("column");
+        when(resultSetMetaData.getColumnLabel(1)).thenReturn("column");
         when(resultSetMetaData.getTableName(1)).thenReturn("table_x");
         when(resultSetMetaData.getColumnCount()).thenReturn(1);
         when(resultSet1.getMetaData()).thenReturn(resultSetMetaData);

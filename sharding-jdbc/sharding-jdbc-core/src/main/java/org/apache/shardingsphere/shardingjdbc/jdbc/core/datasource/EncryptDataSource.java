@@ -25,7 +25,7 @@ import org.apache.shardingsphere.core.constant.DatabaseType;
 import org.apache.shardingsphere.core.metadata.table.ColumnMetaData;
 import org.apache.shardingsphere.core.metadata.table.ShardingTableMetaData;
 import org.apache.shardingsphere.core.metadata.table.TableMetaData;
-import org.apache.shardingsphere.core.parsing.EncryptSQLParsingEngine;
+import org.apache.shardingsphere.core.parse.EncryptSQLParsingEngine;
 import org.apache.shardingsphere.core.rule.EncryptRule;
 import org.apache.shardingsphere.shardingjdbc.jdbc.core.connection.EncryptConnection;
 import org.apache.shardingsphere.shardingjdbc.jdbc.unsupported.AbstractUnsupportedOperationDataSource;
@@ -50,7 +50,7 @@ import java.util.logging.Logger;
  * @author panjuan
  */
 @Getter
-public final class EncryptDataSource extends AbstractUnsupportedOperationDataSource implements AutoCloseable {
+public class EncryptDataSource extends AbstractUnsupportedOperationDataSource implements AutoCloseable {
 
     private final DataSource dataSource;
     
@@ -76,10 +76,18 @@ public final class EncryptDataSource extends AbstractUnsupportedOperationDataSou
         Map<String, TableMetaData> tables = new LinkedHashMap<>();
         try (Connection connection = dataSource.getConnection()) {
             for (String each : encryptRule.getEncryptTableNames()) {
-                tables.put(each, new TableMetaData(getColumnMetaDataList(connection, each)));
+                if (isTableExist(connection, each)) {
+                    tables.put(each, new TableMetaData(getColumnMetaDataList(connection, each)));
+                }
             }
         }
         return new ShardingTableMetaData(tables);
+    }
+    
+    private boolean isTableExist(final Connection connection, final String tableName) throws SQLException {
+        try (ResultSet resultSet = connection.getMetaData().getTables(connection.getCatalog(), null, tableName, null)) {
+            return resultSet.next();
+        }
     }
     
     private List<ColumnMetaData> getColumnMetaDataList(final Connection connection, final String tableName) throws SQLException {

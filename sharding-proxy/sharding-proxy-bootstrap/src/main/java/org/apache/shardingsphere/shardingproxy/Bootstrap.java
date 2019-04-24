@@ -23,6 +23,8 @@ import org.apache.shardingsphere.api.config.RuleConfiguration;
 import org.apache.shardingsphere.core.config.DataSourceConfiguration;
 import org.apache.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
 import org.apache.shardingsphere.core.rule.Authentication;
+import org.apache.shardingsphere.core.yaml.config.common.YamlAuthenticationConfiguration;
+import org.apache.shardingsphere.core.yaml.swapper.impl.AuthenticationYamlSwapper;
 import org.apache.shardingsphere.core.yaml.swapper.impl.MasterSlaveRuleConfigurationYamlSwapper;
 import org.apache.shardingsphere.core.yaml.swapper.impl.ShardingRuleConfigurationYamlSwapper;
 import org.apache.shardingsphere.opentracing.ShardingTracer;
@@ -68,9 +70,7 @@ public final class Bootstrap {
         ShardingConfiguration shardingConfig = new ShardingConfigurationLoader().load();
         int port = getPort(args);
         if (null == shardingConfig.getServerConfiguration().getOrchestration()) {
-            startWithoutRegistryCenter(shardingConfig.getRuleConfigurationMap(), 
-                    new Authentication(shardingConfig.getServerConfiguration().getAuthentication().getUsername(), shardingConfig.getServerConfiguration().getAuthentication().getPassword()),
-                    shardingConfig.getServerConfiguration().getProps(), port);
+            startWithoutRegistryCenter(shardingConfig.getRuleConfigurationMap(), shardingConfig.getServerConfiguration().getAuthentication(), shardingConfig.getServerConfiguration().getProps(), port);
         } else {
             startWithRegistryCenter(shardingConfig.getServerConfiguration(), shardingConfig.getRuleConfigurationMap().keySet(), shardingConfig.getRuleConfigurationMap(), port);
         }
@@ -87,8 +87,9 @@ public final class Bootstrap {
         }
     }
     
-    private static void startWithoutRegistryCenter(final Map<String, YamlProxyRuleConfiguration> ruleConfigs, final Authentication authentication, final Properties prop, final int port) {
-        ShardingProxyContext.getInstance().init(authentication, prop);
+    private static void startWithoutRegistryCenter(final Map<String, YamlProxyRuleConfiguration> ruleConfigs, 
+                                                   final YamlAuthenticationConfiguration authentication, final Properties prop, final int port) {
+        ShardingProxyContext.getInstance().init(getAuthentication(authentication), prop);
         LogicSchemas.getInstance().init(getDataSourceParameterMap(ruleConfigs), getRuleConfiguration(ruleConfigs));
         initOpenTracing();
         ShardingProxy.getInstance().start(port);
@@ -132,7 +133,7 @@ public final class Bootstrap {
             shardingOrchestrationFacade.init();
         } else {
             shardingOrchestrationFacade.init(getDataSourceConfigurationMap(ruleConfigs), 
-                    getRuleConfiguration(ruleConfigs), new Authentication(serverConfig.getAuthentication().getUsername(), serverConfig.getAuthentication().getPassword()), serverConfig.getProps());
+                    getRuleConfiguration(ruleConfigs), getAuthentication(serverConfig.getAuthentication()), serverConfig.getProps());
         }
     }
     
@@ -161,9 +162,16 @@ public final class Bootstrap {
     private static Map<String, RuleConfiguration> getRuleConfiguration(final Map<String, YamlProxyRuleConfiguration> localRuleConfigs) {
         Map<String, RuleConfiguration> result = new HashMap<>();
         for (Entry<String, YamlProxyRuleConfiguration> entry : localRuleConfigs.entrySet()) {
-            result.put(entry.getKey(), null != entry.getValue().getShardingRule() ? new ShardingRuleConfigurationYamlSwapper().swap(entry.getValue().getShardingRule())
-                    : new MasterSlaveRuleConfigurationYamlSwapper().swap(entry.getValue().getMasterSlaveRule()));
+            if (null != entry.getValue().getShardingRule()) {
+                result.put(entry.getKey(), new ShardingRuleConfigurationYamlSwapper().swap(entry.getValue().getShardingRule()));
+            } else if (null != entry.getValue().getMasterSlaveRule()) {
+                result.put(entry.getKey(), new MasterSlaveRuleConfigurationYamlSwapper().swap(entry.getValue().getMasterSlaveRule()));
+            }
         }
         return result;
+    }
+    
+    private static Authentication getAuthentication(final YamlAuthenticationConfiguration yamlAuthenticationConfig) {
+        return new AuthenticationYamlSwapper().swap(yamlAuthenticationConfig);
     }
 }

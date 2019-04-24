@@ -21,8 +21,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.shardingsphere.core.executor.hook.RootInvokeHook;
-import org.apache.shardingsphere.core.executor.hook.SPIRootInvokeHook;
+import org.apache.shardingsphere.core.execute.hook.RootInvokeHook;
+import org.apache.shardingsphere.core.execute.hook.SPIRootInvokeHook;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
 import org.apache.shardingsphere.shardingproxy.frontend.api.CommandExecutor;
 import org.apache.shardingsphere.shardingproxy.frontend.api.QueryCommandExecutor;
@@ -69,7 +69,7 @@ public final class CommandExecutorTask implements Runnable {
         } catch (final Exception ex) {
             // CHECKSTYLE:ON
             log.error("Exception occur: ", ex);
-            context.write(databaseProtocolFrontendEngine.getCommandExecuteEngine().getErrorPacket(ex));
+            context.writeAndFlush(databaseProtocolFrontendEngine.getCommandExecuteEngine().getErrorPacket(ex));
         } finally {
             if (isNeedFlush) {
                 context.flush();

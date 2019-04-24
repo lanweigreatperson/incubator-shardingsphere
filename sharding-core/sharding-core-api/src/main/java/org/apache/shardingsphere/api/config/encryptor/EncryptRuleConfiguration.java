@@ -17,23 +17,25 @@
 
 package org.apache.shardingsphere.api.config.encryptor;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.shardingsphere.api.config.RuleConfiguration;
 
-import java.util.Collection;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Encryptor rule configuration.
  *
  * @author panjuan
  */
+@NoArgsConstructor
+@AllArgsConstructor
 @Getter
 @Setter
 public final class EncryptRuleConfiguration implements RuleConfiguration {
     
-    private Collection<EncryptTableRuleConfiguration> tableRuleConfigs = new LinkedList<>();
-    
-    private EncryptorConfiguration defaultEncryptorConfig;
+    private Map<String, EncryptorRuleConfiguration> encryptorRuleConfigs = new LinkedHashMap<>();
 }

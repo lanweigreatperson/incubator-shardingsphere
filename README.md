@@ -45,7 +45,7 @@ It can be considered as an enhanced JDBC driver, which is fully compatible with 
 
 * Applicable in any ORM framework based on Java, such as JPA, Hibernate, Mybatis, Spring JDBC Template or direct use of JDBC.
 * Based on any third-party database connection pool, such as DBCP, C3P0, BoneCP, Druid, HikariCP.
-* Support any kind of database that conforms to JDBC standard: MySQL，Oracle，SQLServer and PostgreSQL for now.
+* Support any kind of database that conforms to JDBC standard: MySQL, Oracle, SQLServer and PostgreSQL for now.
 
 ![Sharding-JDBC Architecture](http://shardingsphere.jd.com/document/current/img/sharding-jdbc-brief.png)
 
@@ -55,10 +55,10 @@ It can be considered as an enhanced JDBC driver, which is fully compatible with 
 [![Docker Pulls](https://img.shields.io/docker/pulls/shardingsphere/sharding-proxy.svg)](https://store.docker.com/community/images/shardingsphere/sharding-proxy)
 
 Sharding-Proxy defines itself as a transparent database proxy, providing a database server that encapsulates database binary protocol to support heterogeneous languages. 
-Friendlier to DBA, the MySQL version provided now can use any kind of client access (such as MySQL Command Client, MySQL Workbench, etc.) that is compatible of MySQL protocol to operate data.
+Friendlier to DBA, the MySQL/PostgreSQL version provided now can use any kind of client access (such as MySQL Command Client, MySQL Workbench, Navicat etc.) that is compatible of MySQL/PostgreSQL protocol to operate data.
 
-* Totally transparent to applications, it can be used directly as MySQL.
-* Applicable to any kind of compatible of client end that is compatible of MySQL protocol.
+* Totally transparent to applications, it can be used directly as MySQL and PostgreSQL.
+* Applicable to any kind of compatible of client end that is compatible of MySQL and PostgreSQL protocol.
 
 ![Sharding-Proxy Architecture](http://shardingsphere.jd.com/document/current/img/sharding-proxy-brief_v2.png)
 
@@ -76,7 +76,7 @@ They are all governed by mesh layer.
 
 |                         | *Sharding-JDBC* | *Sharding-Proxy*     | *Sharding-Sidecar* |
 | ----------------------- | --------------- | -------------------- | ------------------ |
-| Database                | Any             | MySQL                | MySQL              |
+| Database                | Any             | MySQL/PostgreSQL     | MySQL/PostgreSQL   |
 | Connections Cost Number | High            | Low                  | High               |
 | Heterogeneous Language  | Java Only       | Any                  | Any                |
 | Performance             | Low loss        | Relatively High loss | Low loss           |
@@ -100,20 +100,39 @@ Architects can adjust the system architecture to the most applicable one to curr
 
 * Database sharding & Table sharding
 * Read-write splitting
-* Distributed primary key
+* Sharding strategy customization
+* Centre-less Distributed primary key
 
-### Distributed Transaction (Doing)
+### Distributed Transaction
 
+* Unified Transaction API
 * XA transaction
 * BASE transaction
 
 ### Database Orchestration
 
-* Dynamic configuration
-* Fusing & Disabling
-* Tracing
+* Dynamic Configuration
+* Orchestration & Governance
+* Data Encryption
+* Tracing & Observability
 * Elastic scaling out (Planing)
 
 ## Roadmap
 
 ![Roadmap](http://shardingsphere.jd.com/document/current/img/shardingsphere-roadmap_en.png)
+
+## How to Build
+
+Install `maven` in your computer and run command:
+
+```shell
+mvn clean install -Prelease
+``` 
+
+Artifact:
+
+```
+sharding-distribution/sharding-jdbc-distribution/target/apache-shardingsphere-incubating-${latest.release.version}-sharding-jdbc-bin.tar.gz: Binary package of Sharding-JDBC
+sharding-distribution/sharding-proxy-distribution/target/apache-shardingsphere-incubating-${latest.release.version}-sharding-proxy-bin.tar.gz: Binary package of Sharding-Proxy
+sharding-distribution/shardingsphere-src-distribution/target/apache-shardingsphere-incubating-${latest.release.version}-src.zip: Source code package of ShardingSphere
+```

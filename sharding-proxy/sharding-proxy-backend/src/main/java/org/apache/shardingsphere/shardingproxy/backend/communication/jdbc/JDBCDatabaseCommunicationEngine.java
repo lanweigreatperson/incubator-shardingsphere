@@ -20,12 +20,12 @@ package org.apache.shardingsphere.shardingproxy.backend.communication.jdbc;
 import lombok.RequiredArgsConstructor;
 import org.apache.shardingsphere.core.constant.DatabaseType;
 import org.apache.shardingsphere.core.constant.SQLType;
-import org.apache.shardingsphere.core.merger.MergeEngineFactory;
-import org.apache.shardingsphere.core.merger.MergedResult;
-import org.apache.shardingsphere.core.merger.dal.show.ShowTablesMergedResult;
-import org.apache.shardingsphere.core.parsing.parser.constant.DerivedColumn;
-import org.apache.shardingsphere.core.parsing.parser.sql.SQLStatement;
-import org.apache.shardingsphere.core.routing.SQLRouteResult;
+import org.apache.shardingsphere.core.merge.MergeEngineFactory;
+import org.apache.shardingsphere.core.merge.MergedResult;
+import org.apache.shardingsphere.core.merge.dal.show.ShowTablesMergedResult;
+import org.apache.shardingsphere.core.parse.antlr.sql.statement.SQLStatement;
+import org.apache.shardingsphere.core.parse.old.parser.constant.DerivedColumn;
+import org.apache.shardingsphere.core.route.SQLRouteResult;
 import org.apache.shardingsphere.core.rule.ShardingRule;
 import org.apache.shardingsphere.shardingproxy.backend.communication.DatabaseCommunicationEngine;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
@@ -42,6 +42,7 @@ import org.apache.shardingsphere.shardingproxy.backend.schema.LogicSchema;
 import org.apache.shardingsphere.shardingproxy.backend.schema.LogicSchemas;
 import org.apache.shardingsphere.shardingproxy.backend.schema.MasterSlaveSchema;
 import org.apache.shardingsphere.shardingproxy.backend.schema.ShardingSchema;
+import org.apache.shardingsphere.shardingproxy.backend.schema.TransparentSchema;
 import org.apache.shardingsphere.transaction.core.TransactionType;
 
 import java.sql.SQLException;
@@ -94,7 +95,7 @@ public final class JDBCDatabaseCommunicationEngine implements DatabaseCommunicat
         if (logicSchema instanceof ShardingSchema) {
             logicSchema.refreshTableMetaData(routeResult.getSqlStatement());
         }
-        return merge(sqlStatement);
+        return merge(routeResult);
     }
     
     private boolean isExecuteDDLInXATransaction(final SQLType sqlType) {
@@ -102,15 +103,15 @@ public final class JDBCDatabaseCommunicationEngine implements DatabaseCommunicat
         return TransactionType.XA == connection.getTransactionType() && SQLType.DDL == sqlType && ConnectionStatus.TRANSACTION == connection.getStateHandler().getStatus();
     }
     
-    private BackendResponse merge(final SQLStatement sqlStatement) throws SQLException {
+    private BackendResponse merge(final SQLRouteResult routeResult) throws SQLException {
         if (response instanceof UpdateResponse) {
-            if (!isAllBroadcastTables(sqlStatement)) {
+            if (!isAllBroadcastTables(routeResult.getSqlStatement())) {
                 ((UpdateResponse) response).mergeUpdateCount();
             }
             return response;
         }
         mergedResult = MergeEngineFactory.newInstance(
-            databaseType, getShardingRule(), sqlStatement, logicSchema.getMetaData().getTable(), ((QueryResponse) response).getQueryResults()).merge();
+            databaseType, getShardingRule(), routeResult, logicSchema.getMetaData().getTable(), ((QueryResponse) response).getQueryResults()).merge();
         if (mergedResult instanceof ShowTablesMergedResult) {
             ((ShowTablesMergedResult) mergedResult).resetColumnLabel(logicSchema.getName());
         }
@@ -122,7 +123,15 @@ public final class JDBCDatabaseCommunicationEngine implements DatabaseCommunicat
     }
     
     private ShardingRule getShardingRule() {
-        return logicSchema instanceof MasterSlaveSchema ? ((MasterSlaveSchema) logicSchema).getDefaultShardingRule() : ((ShardingSchema) logicSchema).getShardingRule();
+        ShardingRule result;
+        if (logicSchema instanceof ShardingSchema) {
+            result = ((ShardingSchema) logicSchema).getShardingRule();
+        } else if (logicSchema instanceof MasterSlaveSchema) {
+            result = ((MasterSlaveSchema) logicSchema).getDefaultShardingRule();
+        } else {
+            result = ((TransparentSchema) logicSchema).getDefaultShardingRule();
+        }
+        return result;
     }
     
     private QueryResponse getQueryHeaderResponseWithoutDerivedColumns(final List<QueryHeader> queryHeaders) {

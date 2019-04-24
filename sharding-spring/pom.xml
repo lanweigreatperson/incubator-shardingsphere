@@ -20,8 +20,8 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.apache.shardingsphere</groupId>
-        <artifactId>sharding-sphere</artifactId>
-        <version>4.0.0-RC1-SNAPSHOT</version>
+        <artifactId>shardingsphere</artifactId>
+        <version>4.0.0-RC2-SNAPSHOT</version>
     </parent>
     <artifactId>sharding-spring</artifactId>
     <name>${project.artifactId}</name>
@@ -30,7 +30,5 @@
     <modules>
         <module>sharding-jdbc-spring</module>
         <module>sharding-jdbc-orchestration-spring</module>
-        <module>sharding-transaction-spring</module>
-        <module>sharding-transaction-spring-boot-starter</module>
     </modules>
 </project>

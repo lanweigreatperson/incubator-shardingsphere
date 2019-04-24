@@ -17,44 +17,24 @@
 
 package org.apache.shardingsphere.core.rule;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Collections2;
 import lombok.Getter;
 import org.apache.shardingsphere.api.config.encryptor.EncryptRuleConfiguration;
-import org.apache.shardingsphere.api.config.encryptor.EncryptTableRuleConfiguration;
 import org.apache.shardingsphere.core.strategy.encrypt.ShardingEncryptorEngine;
-import org.apache.shardingsphere.core.strategy.encrypt.ShardingEncryptorStrategy;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.Map;
 
 /**
  * Encrypt rule.
  *
  * @author panjuan
  */
-public final class EncryptRule implements SQLStatementFillerRule {
-    
-    private final Collection<EncryptTableRule> tableRules;
-    
-    private final ShardingEncryptorStrategy defaultEncryptorStrategy;
+public final class EncryptRule implements BaseRule {
     
     @Getter
     private final ShardingEncryptorEngine encryptorEngine;
     
     public EncryptRule(final EncryptRuleConfiguration encryptRuleConfiguration) {
-        tableRules = new LinkedList<>();
-        Map<String, ShardingEncryptorStrategy> shardingEncryptorStrategies = new LinkedHashMap<>();
-        for (EncryptTableRuleConfiguration each : encryptRuleConfiguration.getTableRuleConfigs()) {
-            EncryptTableRule tableRule = new EncryptTableRule(each);
-            tableRules.add(tableRule);
-            shardingEncryptorStrategies.put(tableRule.getTable(), tableRule.getShardingEncryptorStrategy());
-        }
-        defaultEncryptorStrategy = new ShardingEncryptorStrategy(encryptRuleConfiguration.getDefaultEncryptorConfig());
-        encryptorEngine = new ShardingEncryptorEngine(shardingEncryptorStrategies, defaultEncryptorStrategy);
+        encryptorEngine = new ShardingEncryptorEngine(encryptRuleConfiguration);
     }
     
     /**
@@ -63,25 +43,6 @@ public final class EncryptRule implements SQLStatementFillerRule {
      * @return encrypt table names
      */
     public Collection<String> getEncryptTableNames() {
-        return Collections2.transform(tableRules, new Function<EncryptTableRule, String>() {
-            
-            @Override
-            public String apply(final EncryptTableRule input) {
-                return input.getTable();
-            }
-        });
-    }
-    
-    /**
-     * Get all actual table names.
-     *
-     * @return all actual table names
-     */
-    public Map<String, Collection<String>> getAllEncryptTableNames() {
-        Map<String, Collection<String>> result = new LinkedHashMap<>();
-        for (EncryptTableRule each : tableRules) {
-            result.put(each.getTable(), Collections.singletonList(each.getTable()));
-        }
-        return result;
+        return encryptorEngine.getEncryptTableNames();
     }
 }

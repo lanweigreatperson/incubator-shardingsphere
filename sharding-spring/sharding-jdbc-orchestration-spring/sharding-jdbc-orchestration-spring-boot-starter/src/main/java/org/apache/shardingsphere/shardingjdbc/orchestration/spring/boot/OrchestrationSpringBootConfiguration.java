@@ -19,12 +19,6 @@ package org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.common.SpringBootPropertiesConfigurationProperties;
-import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.masterslave.SpringBootMasterSlaveRuleConfigurationProperties;
-import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.orchestration.SpringBootOrchestrationConfigurationProperties;
-import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.sharding.SpringBootShardingRuleConfigurationProperties;
-import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.util.DataSourceUtil;
-import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.util.PropertyUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.shardingsphere.core.constant.ShardingConstant;
 import org.apache.shardingsphere.core.exception.ShardingException;
@@ -38,6 +32,13 @@ import org.apache.shardingsphere.shardingjdbc.jdbc.core.datasource.MasterSlaveDa
 import org.apache.shardingsphere.shardingjdbc.jdbc.core.datasource.ShardingDataSource;
 import org.apache.shardingsphere.shardingjdbc.orchestration.internal.datasource.OrchestrationMasterSlaveDataSource;
 import org.apache.shardingsphere.shardingjdbc.orchestration.internal.datasource.OrchestrationShardingDataSource;
+import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.common.SpringBootPropertiesConfigurationProperties;
+import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.masterslave.SpringBootMasterSlaveRuleConfigurationProperties;
+import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.orchestration.SpringBootOrchestrationConfigurationProperties;
+import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.sharding.SpringBootShardingRuleConfigurationProperties;
+import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.util.DataSourceUtil;
+import org.apache.shardingsphere.shardingjdbc.orchestration.spring.boot.util.PropertyUtil;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.Bean;
@@ -63,6 +64,7 @@ import java.util.Map;
 @EnableConfigurationProperties({
         SpringBootShardingRuleConfigurationProperties.class, SpringBootMasterSlaveRuleConfigurationProperties.class,
         SpringBootPropertiesConfigurationProperties.class, SpringBootOrchestrationConfigurationProperties.class})
+@ConditionalOnProperty(prefix = "spring.shardingsphere", name = "enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class OrchestrationSpringBootConfiguration implements EnvironmentAware {
     
@@ -142,7 +144,7 @@ public class OrchestrationSpringBootConfiguration implements EnvironmentAware {
     
     @Override
     public final void setEnvironment(final Environment environment) {
-        String prefix = "sharding.jdbc.datasource.";
+        String prefix = "spring.shardingsphere.datasource.";
         for (String each : getDataSourceNames(environment, prefix)) {
             try {
                 dataSourceMap.put(each, getDataSource(environment, prefix, each));

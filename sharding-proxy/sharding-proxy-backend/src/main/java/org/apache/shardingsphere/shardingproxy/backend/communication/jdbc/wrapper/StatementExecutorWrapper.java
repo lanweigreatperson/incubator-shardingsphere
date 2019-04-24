@@ -18,16 +18,16 @@
 package org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.wrapper;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.core.SimpleQueryShardingEngine;
 import org.apache.shardingsphere.core.constant.DatabaseType;
 import org.apache.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
-import org.apache.shardingsphere.core.parsing.SQLJudgeEngine;
-import org.apache.shardingsphere.core.parsing.parser.sql.SQLStatement;
+import org.apache.shardingsphere.core.parse.SQLJudgeEngine;
+import org.apache.shardingsphere.core.parse.antlr.sql.statement.SQLStatement;
 import org.apache.shardingsphere.core.rewrite.MasterSlaveSQLRewriteEngine;
-import org.apache.shardingsphere.core.routing.RouteUnit;
-import org.apache.shardingsphere.core.routing.SQLRouteResult;
-import org.apache.shardingsphere.core.routing.SQLUnit;
-import org.apache.shardingsphere.core.routing.StatementRoutingEngine;
-import org.apache.shardingsphere.core.routing.router.masterslave.MasterSlaveRouter;
+import org.apache.shardingsphere.core.route.RouteUnit;
+import org.apache.shardingsphere.core.route.SQLRouteResult;
+import org.apache.shardingsphere.core.route.SQLUnit;
+import org.apache.shardingsphere.core.route.router.masterslave.MasterSlaveRouter;
 import org.apache.shardingsphere.shardingproxy.backend.schema.LogicSchema;
 import org.apache.shardingsphere.shardingproxy.backend.schema.MasterSlaveSchema;
 import org.apache.shardingsphere.shardingproxy.backend.schema.ShardingSchema;
@@ -52,7 +52,21 @@ public final class StatementExecutorWrapper implements JDBCExecutorWrapper {
     
     @Override
     public SQLRouteResult route(final String sql, final DatabaseType databaseType) {
-        return logicSchema instanceof MasterSlaveSchema ? doMasterSlaveRoute(sql) : doShardingRoute(sql, databaseType);
+        SQLRouteResult result;
+        if (logicSchema instanceof ShardingSchema) {
+            result = doShardingRoute(sql, databaseType);
+        } else if (logicSchema instanceof MasterSlaveSchema) {
+            result = doMasterSlaveRoute(sql);
+        } else {
+            result = doTransparentRoute(sql);
+        }
+        return result;
+    }
+    
+    private SQLRouteResult doTransparentRoute(final String sql) {
+        SQLRouteResult result = new SQLRouteResult(new SQLJudgeEngine(sql).judge());
+        result.getRouteUnits().add(new RouteUnit(logicSchema.getDataSources().keySet().iterator().next(), new SQLUnit(sql, Collections.emptyList())));
+        return result;
     }
     
     private SQLRouteResult doMasterSlaveRoute(final String sql) {
@@ -67,9 +81,9 @@ public final class StatementExecutorWrapper implements JDBCExecutorWrapper {
     }
     
     private SQLRouteResult doShardingRoute(final String sql, final DatabaseType databaseType) {
-        StatementRoutingEngine routingEngine = new StatementRoutingEngine(((ShardingSchema) logicSchema).getShardingRule(), logicSchema.getMetaData(),
-                databaseType, logicSchema.getParsingResultCache(), SHARDING_PROXY_CONTEXT.getShardingProperties().<Boolean>getValue(ShardingPropertiesConstant.SQL_SHOW));
-        return routingEngine.route(sql);
+        SimpleQueryShardingEngine shardingEngine = new SimpleQueryShardingEngine(((ShardingSchema) logicSchema).getShardingRule(), 
+                ShardingProxyContext.getInstance().getShardingProperties(), logicSchema.getMetaData(), databaseType, logicSchema.getParsingResultCache());
+        return shardingEngine.shard(sql, Collections.emptyList());
     }
     
     @Override
