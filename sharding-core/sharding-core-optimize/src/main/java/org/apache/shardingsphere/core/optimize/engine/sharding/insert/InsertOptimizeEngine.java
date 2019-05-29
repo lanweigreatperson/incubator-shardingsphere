@@ -26,16 +26,13 @@ import org.apache.shardingsphere.core.optimize.engine.OptimizeEngine;
 import org.apache.shardingsphere.core.optimize.result.OptimizeResult;
 import org.apache.shardingsphere.core.optimize.result.insert.InsertOptimizeResult;
 import org.apache.shardingsphere.core.optimize.result.insert.InsertOptimizeResultUnit;
-import org.apache.shardingsphere.core.optimize.result.insert.InsertType;
-import org.apache.shardingsphere.core.parse.antlr.sql.statement.dml.InsertStatement;
-import org.apache.shardingsphere.core.parse.antlr.sql.token.InsertValuesToken;
-import org.apache.shardingsphere.core.parse.old.parser.context.condition.AndCondition;
-import org.apache.shardingsphere.core.parse.old.parser.context.condition.Condition;
-import org.apache.shardingsphere.core.parse.old.parser.context.insertvalue.InsertValue;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLExpression;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLNumberExpression;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLPlaceholderExpression;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLTextExpression;
+import org.apache.shardingsphere.core.parse.sql.context.condition.AndCondition;
+import org.apache.shardingsphere.core.parse.sql.context.condition.Condition;
+import org.apache.shardingsphere.core.parse.sql.context.insertvalue.InsertValue;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.ExpressionSegment;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.simple.LiteralExpressionSegment;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.simple.ParameterMarkerExpressionSegment;
+import org.apache.shardingsphere.core.parse.sql.statement.dml.InsertStatement;
 import org.apache.shardingsphere.core.rule.ShardingRule;
 import org.apache.shardingsphere.core.strategy.route.value.ListRouteValue;
 
@@ -66,18 +63,18 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
     
     @Override
     public OptimizeResult optimize() {
-        List<AndCondition> andConditions = insertStatement.getRouteConditions().getOrCondition().getAndConditions();
+        List<AndCondition> andConditions = insertStatement.getRouteCondition().getOrConditions();
         Iterator<Comparable<?>> generatedKeys = createGeneratedKeys();
         List<ShardingCondition> shardingConditions = new ArrayList<>(andConditions.size());
-        InsertOptimizeResult insertOptimizeResult = createInsertOptimizeResult();
+        InsertOptimizeResult insertOptimizeResult = new InsertOptimizeResult(insertStatement.getColumnNames());
         int parametersCount = 0;
         for (int i = 0; i < andConditions.size(); i++) {
             InsertValue insertValue = insertStatement.getValues().get(i);
-            SQLExpression[] currentColumnValues = createCurrentColumnValues(insertValue);
+            ExpressionSegment[] currentColumnValues = createCurrentColumnValues(insertValue);
             Object[] currentParameters = createCurrentParameters(parametersCount, insertValue);
             parametersCount = parametersCount + insertValue.getParametersCount();
             ShardingCondition shardingCondition = createShardingCondition(andConditions.get(i));
-            insertOptimizeResult.addUnit(currentColumnValues, currentParameters);
+            insertOptimizeResult.addUnit(currentColumnValues, currentParameters, insertValue.getParametersCount());
             if (isNeededToAppendGeneratedKey()) {
                 Comparable<?> currentGeneratedKey = generatedKeys.next();
                 fillWithGeneratedKeyName(insertOptimizeResult);
@@ -92,17 +89,12 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
         return new OptimizeResult(new ShardingConditions(shardingConditions), insertOptimizeResult);
     }
     
-    private InsertOptimizeResult createInsertOptimizeResult() {
-        InsertType type = insertStatement.findSQLToken(InsertValuesToken.class).isPresent() ? InsertType.VALUES : InsertType.SET;
-        return new InsertOptimizeResult(type, insertStatement.getColumnNames());
-    }
-    
     private Iterator<Comparable<?>> createGeneratedKeys() {
         return isNeededToAppendGeneratedKey() ? generatedKey.getGeneratedKeys().iterator() : null;
     }
     
-    private SQLExpression[] createCurrentColumnValues(final InsertValue insertValue) {
-        SQLExpression[] result = new SQLExpression[insertValue.getAssignments().size() + getIncrement()];
+    private ExpressionSegment[] createCurrentColumnValues(final InsertValue insertValue) {
+        ExpressionSegment[] result = new ExpressionSegment[insertValue.getAssignments().size() + getIncrement()];
         insertValue.getAssignments().toArray(result);
         return result;
     }
@@ -150,7 +142,6 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
     
     private void fillWithGeneratedKeyName(final InsertOptimizeResult insertOptimizeResult) {
         String generateKeyColumnName = shardingRule.findGenerateKeyColumnName(insertStatement.getTables().getSingleTableName()).get();
-        insertOptimizeResult.getColumnNames().remove(generateKeyColumnName);
         insertOptimizeResult.getColumnNames().add(generateKeyColumnName);
     }
     
@@ -183,12 +174,12 @@ public final class InsertOptimizeEngine implements OptimizeEngine {
     
     private void fillInsertOptimizeResultUnit(final InsertOptimizeResultUnit unit, final Comparable<?> columnValue) {
         if (!parameters.isEmpty()) {
-            unit.addColumnValue(new SQLPlaceholderExpression(parameters.size() - 1));
+            // TODO fix start index and stop index
+            unit.addColumnValue(new ParameterMarkerExpressionSegment(0, 0, parameters.size() - 1));
             unit.addColumnParameter(columnValue);
-        } else if (columnValue.getClass() == String.class) {
-            unit.addColumnValue(new SQLTextExpression(columnValue.toString()));
         } else {
-            unit.addColumnValue(new SQLNumberExpression((Number) columnValue));
+            // TODO fix start index and stop index
+            unit.addColumnValue(new LiteralExpressionSegment(0, 0, columnValue));
         }
     }
 }

@@ -20,11 +20,13 @@ package org.apache.shardingsphere.shardingproxy.backend.text;
 import com.google.common.base.Optional;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.apache.shardingsphere.core.constant.DatabaseType;
 import org.apache.shardingsphere.core.constant.SQLType;
-import org.apache.shardingsphere.core.parse.SQLJudgeEngine;
-import org.apache.shardingsphere.core.parse.antlr.sql.statement.SQLStatement;
-import org.apache.shardingsphere.core.parse.old.parser.dialect.mysql.statement.ShowDatabasesStatement;
-import org.apache.shardingsphere.core.parse.old.parser.dialect.mysql.statement.UseStatement;
+import org.apache.shardingsphere.core.parse.SQLParseEngine;
+import org.apache.shardingsphere.core.parse.rule.registry.MasterSlaveParseRuleRegistry;
+import org.apache.shardingsphere.core.parse.sql.statement.SQLStatement;
+import org.apache.shardingsphere.core.parse.sql.statement.dal.dialect.mysql.statement.ShowDatabasesStatement;
+import org.apache.shardingsphere.core.parse.sql.statement.dal.dialect.mysql.statement.UseStatement;
 import org.apache.shardingsphere.shardingproxy.backend.communication.jdbc.connection.BackendConnection;
 import org.apache.shardingsphere.shardingproxy.backend.text.admin.BroadcastBackendHandler;
 import org.apache.shardingsphere.shardingproxy.backend.text.admin.ShowDatabasesBackendHandler;
@@ -37,7 +39,9 @@ import org.apache.shardingsphere.shardingproxy.backend.text.transaction.Transact
 import org.apache.shardingsphere.transaction.core.TransactionOperationType;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Text protocol backend handler factory.
@@ -47,18 +51,19 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class TextProtocolBackendHandlerFactory {
     
-    private static final String SET_AUTOCOMMIT_1 = "SET AUTOCOMMIT=1";
+    private static final Set<String> AUTO_COMMIT = new HashSet<>(Arrays.asList("SET AUTOCOMMIT=1", "SET @@SESSION.AUTOCOMMIT = ON"));
     
     private static final List<String> GUI_SQL = Arrays.asList("SET", "SHOW VARIABLES LIKE", "SHOW CHARACTER SET", "SHOW COLLATION");
     
     /**
      * Create new instance of text protocol backend handler.
      *
+     * @param databaseType database type
      * @param sql SQL to be executed
      * @param backendConnection backend connection
      * @return instance of text protocol backend handler
      */
-    public static TextProtocolBackendHandler newInstance(final String sql, final BackendConnection backendConnection) {
+    public static TextProtocolBackendHandler newInstance(final DatabaseType databaseType, final String sql, final BackendConnection backendConnection) {
         if (sql.toUpperCase().startsWith(ShardingCTLBackendHandlerFactory.SCTL)) {
             return ShardingCTLBackendHandlerFactory.newInstance(sql, backendConnection);
         }
@@ -67,10 +72,10 @@ public final class TextProtocolBackendHandlerFactory {
         if (transactionOperationType.isPresent()) {
             return new TransactionBackendHandler(transactionOperationType.get(), backendConnection);
         }
-        if (sql.toUpperCase().contains(SET_AUTOCOMMIT_1)) {
+        if (AUTO_COMMIT.contains(sql.toUpperCase())) {
             return backendConnection.getStateHandler().isInTransaction() ? new TransactionBackendHandler(TransactionOperationType.COMMIT, backendConnection) : new SkipBackendHandler();
         }
-        SQLStatement sqlStatement = new SQLJudgeEngine(sql).judge();
+        SQLStatement sqlStatement = new SQLParseEngine(MasterSlaveParseRuleRegistry.getInstance(), databaseType, sql, null, null).parse();
         return SQLType.DAL == sqlStatement.getType() ? createDALBackendHandler(sqlStatement, sql, backendConnection) : new QueryBackendHandler(sql, backendConnection);
     }
     

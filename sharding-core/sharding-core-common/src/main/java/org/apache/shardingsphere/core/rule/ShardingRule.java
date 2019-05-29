@@ -29,7 +29,6 @@ import org.apache.shardingsphere.api.config.sharding.ShardingRuleConfiguration;
 import org.apache.shardingsphere.api.config.sharding.TableRuleConfiguration;
 import org.apache.shardingsphere.api.config.sharding.strategy.ShardingStrategyConfiguration;
 import org.apache.shardingsphere.core.exception.ShardingConfigurationException;
-import org.apache.shardingsphere.core.exception.ShardingException;
 import org.apache.shardingsphere.core.spi.algorithm.keygen.ShardingKeyGeneratorServiceLoader;
 import org.apache.shardingsphere.core.strategy.encrypt.ShardingEncryptorEngine;
 import org.apache.shardingsphere.core.strategy.route.ShardingStrategy;
@@ -460,23 +459,6 @@ public class ShardingRule implements BaseRule {
             }
         }
         return Optional.absent();
-    }
-    
-    /**
-     * Get actual data source name.
-     *
-     * @param actualTableName actual table name
-     * @return actual data source name
-     */
-    public String getActualDataSourceName(final String actualTableName) {
-        Optional<TableRule> tableRule = findTableRuleByActualTable(actualTableName);
-        if (tableRule.isPresent()) {
-            return tableRule.get().getActualDatasourceNames().iterator().next();
-        }
-        if (!Strings.isNullOrEmpty(shardingDataSourceNames.getDefaultDataSourceName())) {
-            return shardingDataSourceNames.getDefaultDataSourceName();
-        }
-        throw new ShardingException("Cannot found actual data source name of '%s' in sharding rule.", actualTableName);
     }
     
     /**

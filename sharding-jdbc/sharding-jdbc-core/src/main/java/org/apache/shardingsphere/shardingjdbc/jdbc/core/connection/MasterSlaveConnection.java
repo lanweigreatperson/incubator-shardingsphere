@@ -18,12 +18,12 @@
 package org.apache.shardingsphere.shardingjdbc.jdbc.core.connection;
 
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.core.parse.entry.MasterSlaveSQLParseEntry;
 import org.apache.shardingsphere.shardingjdbc.jdbc.adapter.AbstractConnectionAdapter;
 import org.apache.shardingsphere.shardingjdbc.jdbc.core.datasource.MasterSlaveDataSource;
 import org.apache.shardingsphere.shardingjdbc.jdbc.core.statement.MasterSlavePreparedStatement;
 import org.apache.shardingsphere.shardingjdbc.jdbc.core.statement.MasterSlaveStatement;
-import org.apache.shardingsphere.transaction.ShardingTransactionManagerEngine;
-import org.apache.shardingsphere.transaction.core.TransactionType;
 
 import javax.sql.DataSource;
 import java.sql.DatabaseMetaData;
@@ -38,6 +38,7 @@ import java.util.Map;
  * @author zhangliang
  * @author zhaojun
  */
+@RequiredArgsConstructor
 @Getter
 public final class MasterSlaveConnection extends AbstractConnectionAdapter {
     
@@ -45,12 +46,7 @@ public final class MasterSlaveConnection extends AbstractConnectionAdapter {
     
     private final Map<String, DataSource> dataSourceMap;
     
-    public MasterSlaveConnection(final MasterSlaveDataSource masterSlaveDataSource, final Map<String, DataSource> dataSourceMap,
-                                 final ShardingTransactionManagerEngine shardingTransactionManagerEngine, final TransactionType transactionType) {
-        super(shardingTransactionManagerEngine, transactionType);
-        this.masterSlaveDataSource = masterSlaveDataSource;
-        this.dataSourceMap = dataSourceMap;
-    }
+    private final MasterSlaveSQLParseEntry parseEngine;
     
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
@@ -100,10 +96,5 @@ public final class MasterSlaveConnection extends AbstractConnectionAdapter {
     @Override
     public PreparedStatement prepareStatement(final String sql, final String[] columnNames) throws SQLException {
         return new MasterSlavePreparedStatement(this, sql, columnNames);
-    }
-    
-    @Override
-    protected boolean isOnlyLocalTransactionValid() {
-        return true;
     }
 }

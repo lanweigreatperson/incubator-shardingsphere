@@ -17,7 +17,7 @@
 
 grammar BaseRule;
 
-import Symbol, Keyword, Literals;
+import Symbol, Keyword, MySQLKeyword, Literals;
 
 parameterMarker
     : QUESTION_
@@ -34,11 +34,11 @@ literals
     ;
 
 stringLiterals
-    : characterSetName_? STRING_ collateName_?
+    : characterSetName_? STRING_ collateClause_?
     ;
 
 numberLiterals
-   : NUMBER_
+   : MINUS_? NUMBER_
    ;
 
 dateTimeLiterals
@@ -47,11 +47,11 @@ dateTimeLiterals
     ;
 
 hexadecimalLiterals
-    : characterSetName_? HEX_DIGIT_ collateName_?
+    : characterSetName_? HEX_DIGIT_ collateClause_?
     ;
 
 bitValueLiterals
-    : characterSetName_? BIT_NUM_ collateName_?
+    : characterSetName_? BIT_NUM_ collateClause_?
     ;
     
 booleanLiterals
@@ -60,14 +60,6 @@ booleanLiterals
 
 nullValueLiterals
     : NULL
-    ;
-
-characterSetName_
-    : IDENTIFIER_
-    ;
-
-collateName_
-    : IDENTIFIER_
     ;
 
 identifier_
@@ -100,23 +92,44 @@ unreservedWord_
     | QUARTER | YEAR | AGAINST | LANGUAGE | MODE | QUERY | EXPANSION
     | BOOLEAN | MAX | MIN | SUM | COUNT | AVG | BIT_AND
     | BIT_OR | BIT_XOR | GROUP_CONCAT | JSON_ARRAYAGG | JSON_OBJECTAGG | STD | STDDEV
-    | STDDEV_POP | STDDEV_SAMP | VAR_POP | VAR_SAMP | VARIANCE
+    | STDDEV_POP | STDDEV_SAMP | VAR_POP | VAR_SAMP | VARIANCE | EXTENDED | STATUS
+    | FIELDS | INDEXES | USER | ROLE | OJ | AUTOCOMMIT
+    ;
+
+schemaName
+    : identifier_
     ;
 
 tableName
-    : (identifier_ DOT_)? identifier_
+    : (owner DOT_)? name
     ;
 
 columnName
-    : (identifier_ DOT_)? identifier_
+    : (owner DOT_)? name
+    ;
+
+owner
+    : identifier_
+    ;
+
+name
+    : identifier_
     ;
 
 columnNames
-    : LP_ columnName (COMMA_ columnName)* RP_
+    : LP_? columnName (COMMA_ columnName)* RP_?
+    ;
+
+tableNames
+    : LP_? tableName (COMMA_ tableName)* RP_?
     ;
 
 indexName
     : identifier_
+    ;
+
+characterSetName_
+    : IDENTIFIER_
     ;
 
 expr
@@ -297,7 +310,7 @@ regularFunction_
     ;
 
 regularFunctionName_
-    : identifier_ | IF | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | NOW | REPLACE
+    : identifier_ | IF | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | NOW | REPLACE | INTERVAL
     ;
 
 matchExpression_
@@ -355,7 +368,7 @@ dataTypeLength
     ;
 
 characterSet_
-    : (CHARACTER | CHAR) SET EQ_? ignoredIdentifier_ | CHARSET EQ_? ignoredIdentifier_
+    : (CHARACTER | CHAR) SET EQ_? ignoredIdentifier_
     ;
 
 collateClause_

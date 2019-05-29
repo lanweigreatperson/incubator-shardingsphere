@@ -18,7 +18,7 @@
 package org.apache.shardingsphere.core.optimize.result.insert;
 
 import lombok.Getter;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLExpression;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.ExpressionSegment;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -33,14 +33,11 @@ import java.util.List;
 @Getter
 public final class InsertOptimizeResult {
     
-    private final InsertType type;
-    
     private final Collection<String> columnNames = new LinkedHashSet<>();
     
     private final List<InsertOptimizeResultUnit> units = new LinkedList<>();
     
-    public InsertOptimizeResult(final InsertType type, final Collection<String> columnNames) {
-        this.type = type;
+    public InsertOptimizeResult(final Collection<String> columnNames) {
         this.columnNames.addAll(columnNames);
     }
     
@@ -49,12 +46,9 @@ public final class InsertOptimizeResult {
      *
      * @param columnValues column values
      * @param columnParameters column parameters
+     * @param startIndexOfAppendedParameters start index of appended parameters
      */
-    public void addUnit(final SQLExpression[] columnValues, final Object[] columnParameters) {
-        if (type == InsertType.VALUES) {
-            this.units.add(new ColumnValueOptimizeResult(columnNames, columnValues, columnParameters));
-        } else {
-            this.units.add(new SetAssignmentOptimizeResult(columnNames, columnValues, columnParameters));
-        }
+    public void addUnit(final ExpressionSegment[] columnValues, final Object[] columnParameters, final int startIndexOfAppendedParameters) {
+        this.units.add(new InsertOptimizeResultUnit(columnNames, columnValues, columnParameters, startIndexOfAppendedParameters));
     }
 }

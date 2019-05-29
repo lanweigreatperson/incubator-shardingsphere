@@ -19,12 +19,12 @@ package org.apache.shardingsphere.core.parse.extractor;
 
 import com.google.common.base.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.apache.shardingsphere.core.parse.antlr.extractor.api.CollectionSQLSegmentExtractor;
-import org.apache.shardingsphere.core.parse.antlr.extractor.impl.ddl.column.ColumnDefinitionExtractor;
-import org.apache.shardingsphere.core.parse.antlr.extractor.util.ExtractorUtils;
-import org.apache.shardingsphere.core.parse.antlr.extractor.util.RuleName;
-import org.apache.shardingsphere.core.parse.antlr.sql.segment.ddl.column.ColumnDefinitionSegment;
-import org.apache.shardingsphere.core.parse.antlr.sql.segment.ddl.column.alter.ModifyColumnDefinitionSegment;
+import org.apache.shardingsphere.core.parse.extractor.api.CollectionSQLSegmentExtractor;
+import org.apache.shardingsphere.core.parse.extractor.impl.ddl.column.ColumnDefinitionExtractor;
+import org.apache.shardingsphere.core.parse.extractor.util.ExtractorUtils;
+import org.apache.shardingsphere.core.parse.extractor.util.RuleName;
+import org.apache.shardingsphere.core.parse.sql.segment.ddl.column.ColumnDefinitionSegment;
+import org.apache.shardingsphere.core.parse.sql.segment.ddl.column.alter.ModifyColumnDefinitionSegment;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -52,7 +52,7 @@ public final class OracleModifyColumnDefinitionExtractor implements CollectionSQ
                 // it`s not column definition, but can call this method
                 Optional<ColumnDefinitionSegment> columnDefinition = columnDefinitionPhraseExtractor.extract(each, parameterMarkerIndexes);
                 if (columnDefinition.isPresent()) {
-                    result.add(new ModifyColumnDefinitionSegment(null, columnDefinition.get()));
+                    result.add(new ModifyColumnDefinitionSegment(each.getStart().getStartIndex(), each.getStop().getStopIndex(), null, columnDefinition.get()));
                 }
             }
         }

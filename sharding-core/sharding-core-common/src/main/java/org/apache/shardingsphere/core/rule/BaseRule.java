@@ -21,6 +21,7 @@ package org.apache.shardingsphere.core.rule;
  * Base rule.
  *
  * @author zhangliang
+ * @author panjuan
  */
 public interface BaseRule {
 }

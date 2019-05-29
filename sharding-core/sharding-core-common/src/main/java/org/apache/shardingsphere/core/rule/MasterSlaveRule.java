@@ -32,7 +32,7 @@ import java.util.Collection;
  * @author panjuan
  */
 @Getter
-public class MasterSlaveRule {
+public class MasterSlaveRule implements BaseRule {
     
     private final String name;
     
@@ -63,7 +63,8 @@ public class MasterSlaveRule {
     
     private MasterSlaveLoadBalanceAlgorithm createMasterSlaveLoadBalanceAlgorithm(final LoadBalanceStrategyConfiguration loadBalanceStrategyConfiguration) {
         MasterSlaveLoadBalanceAlgorithmServiceLoader serviceLoader = new MasterSlaveLoadBalanceAlgorithmServiceLoader();
-        return null == loadBalanceStrategyConfiguration ? serviceLoader.newService() : serviceLoader.newService(loadBalanceStrategyConfiguration.getType(), loadBalanceStrategyConfiguration.getProperties());
+        return null == loadBalanceStrategyConfiguration
+                ? serviceLoader.newService() : serviceLoader.newService(loadBalanceStrategyConfiguration.getType(), loadBalanceStrategyConfiguration.getProperties());
     }
     
     /**

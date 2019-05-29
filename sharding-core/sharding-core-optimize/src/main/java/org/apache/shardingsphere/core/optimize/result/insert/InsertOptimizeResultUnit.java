@@ -20,10 +20,9 @@ package org.apache.shardingsphere.core.optimize.result.insert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.apache.shardingsphere.core.exception.ShardingException;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLExpression;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLNumberExpression;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLPlaceholderExpression;
-import org.apache.shardingsphere.core.parse.old.parser.expression.SQLTextExpression;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.ExpressionSegment;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.simple.LiteralExpressionSegment;
+import org.apache.shardingsphere.core.parse.sql.segment.dml.expr.simple.ParameterMarkerExpressionSegment;
 import org.apache.shardingsphere.core.rule.DataNode;
 
 import java.util.ArrayList;
@@ -39,42 +38,43 @@ import java.util.List;
  */
 @RequiredArgsConstructor
 @Getter
-public abstract class InsertOptimizeResultUnit {
+public final class InsertOptimizeResultUnit {
     
     private final Collection<String> columnNames;
     
-    private final SQLExpression[] values;
+    private final ExpressionSegment[] values;
     
     private final Object[] parameters;
+    
+    private final int startIndexOfAppendedParameters;
     
     private final List<DataNode> dataNodes = new LinkedList<>();
     
     /**
      * Add column value.
      *
-     * @param sqlExpression SQL expression
+     * @param expressionSegment expression segment
      */
-    public final void addColumnValue(final SQLExpression sqlExpression) {
-        values[getCurrentIndex(values)] = sqlExpression;
+    public void addColumnValue(final ExpressionSegment expressionSegment) {
+        values[getCurrentIndex(values, 0)] = expressionSegment;
     }
     
     /**
      * Add column parameter.
      *
-     * @param parameter parameter 
+     * @param parameter parameter
      */
-    public final void addColumnParameter(final Object parameter) {
-        parameters[getCurrentIndex(parameters)] = parameter;
+    public void addColumnParameter(final Object parameter) {
+        parameters[getCurrentIndex(parameters, startIndexOfAppendedParameters)] = parameter;
     }
     
-    private int getCurrentIndex(final Object[] array) {
-        int count = 0;
-        for (Object each : array) {
-            if (null != each) {
-                count++;
+    private int getCurrentIndex(final Object[] array, final int startIndex) {
+        for (int i = startIndex; i < array.length; i++) {
+            if (null == array[i]) {
+                return i;
             }
         }
-        return count;
+        throw new ShardingException("Index Out Of Bounds For InsertOptimizeResultUnit.");
     }
     
     /**
@@ -83,13 +83,12 @@ public abstract class InsertOptimizeResultUnit {
      * @param columnName column name
      * @param columnValue column value
      */
-    public final void setColumnValue(final String columnName, final Object columnValue) {
-        SQLExpression sqlExpression = values[getColumnIndex(columnName)];
-        if (sqlExpression instanceof SQLPlaceholderExpression) {
-            parameters[getParameterIndex(sqlExpression)] = columnValue;
+    public void setColumnValue(final String columnName, final Object columnValue) {
+        ExpressionSegment expressionSegment = values[getColumnIndex(columnName)];
+        if (expressionSegment instanceof ParameterMarkerExpressionSegment) {
+            parameters[getParameterIndex(expressionSegment)] = columnValue;
         } else {
-            SQLExpression columnExpression = String.class == columnValue.getClass() ? new SQLTextExpression(String.valueOf(columnValue)) : new SQLNumberExpression((Number) columnValue);
-            values[getColumnIndex(columnName)] = columnExpression;
+            values[getColumnIndex(columnName)] = new LiteralExpressionSegment(expressionSegment.getStartIndex(), expressionSegment.getStopIndex(), columnValue);
         }
     }
     
@@ -97,12 +96,12 @@ public abstract class InsertOptimizeResultUnit {
         return new ArrayList<>(columnNames).indexOf(columnName);
     }
     
-    private int getParameterIndex(final SQLExpression sqlExpression) {
+    private int getParameterIndex(final ExpressionSegment expressionSegment) {
         int result = 0;
-        for (SQLExpression each : values) {
-            if (sqlExpression == each) {
+        for (ExpressionSegment each : values) {
+            if (expressionSegment == each) {
                 return result;
-            } else if (each instanceof SQLPlaceholderExpression) {
+            } else if (each instanceof ParameterMarkerExpressionSegment) {
                 result++;
             }
         }
@@ -115,25 +114,21 @@ public abstract class InsertOptimizeResultUnit {
      * @param columnName column name
      * @return column value
      */
-    public final Object getColumnValue(final String columnName) {
-        SQLExpression sqlExpression = values[getColumnIndex(columnName)];
-        if (sqlExpression instanceof SQLPlaceholderExpression) {
-            return parameters[getParameterIndex(sqlExpression)];
-        } else if (sqlExpression instanceof SQLTextExpression) {
-            return ((SQLTextExpression) sqlExpression).getText();
-        } else {
-            return ((SQLNumberExpression) sqlExpression).getNumber();
+    public Object getColumnValue(final String columnName) {
+        ExpressionSegment expressionSegment = values[getColumnIndex(columnName)];
+        if (expressionSegment instanceof ParameterMarkerExpressionSegment) {
+            return parameters[getParameterIndex(expressionSegment)];
         }
+        return ((LiteralExpressionSegment) expressionSegment).getLiterals();
     }
     
-    protected final String getColumnSQLExpressionValue(final int columnValueIndex) {
-        SQLExpression sqlExpression = values[columnValueIndex];
-        if (sqlExpression instanceof SQLPlaceholderExpression) {
-            return "?";
-        } else if (sqlExpression instanceof SQLTextExpression) {
-            return String.format("'%s'", ((SQLTextExpression) sqlExpression).getText());
-        } else {
-            return String.valueOf(((SQLNumberExpression) sqlExpression).getNumber());
-        }
+    /**
+     * Get column sql expression.
+     *
+     * @param columnName column name
+     * @return column sql expression
+     */
+    public ExpressionSegment getColumnSQLExpression(final String columnName) {
+        return values[getColumnIndex(columnName)];
     }
 }

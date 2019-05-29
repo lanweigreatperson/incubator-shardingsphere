@@ -23,13 +23,13 @@ import org.apache.shardingsphere.core.constant.DatabaseType;
 import org.apache.shardingsphere.core.constant.properties.ShardingProperties;
 import org.apache.shardingsphere.core.constant.properties.ShardingPropertiesConstant;
 import org.apache.shardingsphere.core.metadata.ShardingMetaData;
-import org.apache.shardingsphere.core.rewrite.SQLBuilder;
 import org.apache.shardingsphere.core.rewrite.SQLRewriteEngine;
 import org.apache.shardingsphere.core.route.RouteUnit;
 import org.apache.shardingsphere.core.route.SQLLogger;
 import org.apache.shardingsphere.core.route.SQLRouteResult;
 import org.apache.shardingsphere.core.route.SQLUnit;
-import org.apache.shardingsphere.core.route.type.TableUnit;
+import org.apache.shardingsphere.core.route.hook.SPIRoutingHook;
+import org.apache.shardingsphere.core.route.type.RoutingUnit;
 import org.apache.shardingsphere.core.rule.ShardingRule;
 
 import java.util.Collection;
@@ -40,6 +40,7 @@ import java.util.List;
  * Base sharding engine.
  *
  * @author zhangliang
+ * @author panjuan
  */
 @RequiredArgsConstructor
 public abstract class BaseShardingEngine {
@@ -52,6 +53,8 @@ public abstract class BaseShardingEngine {
     
     private final DatabaseType databaseType;
     
+    private final SPIRoutingHook routingHook = new SPIRoutingHook();
+    
     /**
      * Shard.
      *
@@ -61,8 +64,8 @@ public abstract class BaseShardingEngine {
      */
     public SQLRouteResult shard(final String sql, final List<Object> parameters) {
         List<Object> clonedParameters = cloneParameters(parameters);
-        SQLRouteResult result = route(sql, clonedParameters);
-        result.getRouteUnits().addAll(HintManager.isDatabaseShardingOnly() ? convert(sql, clonedParameters, result) : rewriteAndConvert(sql, clonedParameters, result));
+        SQLRouteResult result = executeRoute(sql, clonedParameters);
+        result.getRouteUnits().addAll(HintManager.isDatabaseShardingOnly() ? convert(sql, clonedParameters, result) : rewriteAndConvert(clonedParameters, result));
         if (shardingProperties.getValue(ShardingPropertiesConstant.SQL_SHOW)) {
             boolean showSimple = shardingProperties.getValue(ShardingPropertiesConstant.SQL_SIMPLE);
             SQLLogger.logSQL(sql, showSimple, result.getSqlStatement(), result.getRouteUnits());
@@ -74,20 +77,33 @@ public abstract class BaseShardingEngine {
     
     protected abstract SQLRouteResult route(String sql, List<Object> parameters);
     
+    private SQLRouteResult executeRoute(final String sql, final List<Object> clonedParameters) {
+        routingHook.start(sql);
+        try {
+            SQLRouteResult result = route(sql, clonedParameters);
+            routingHook.finishSuccess(result, metaData.getTable());
+            return result;
+            // CHECKSTYLE:OFF
+        } catch (final Exception ex) {
+            // CHECKSTYLE:ON
+            routingHook.finishFailure(ex);
+            throw ex;
+        }
+    }
+    
     private Collection<RouteUnit> convert(final String sql, final List<Object> parameters, final SQLRouteResult sqlRouteResult) {
         Collection<RouteUnit> result = new LinkedHashSet<>();
-        for (TableUnit each : sqlRouteResult.getRoutingResult().getTableUnits().getTableUnits()) {
+        for (RoutingUnit each : sqlRouteResult.getRoutingResult().getRoutingUnits()) {
             result.add(new RouteUnit(each.getDataSourceName(), new SQLUnit(sql, parameters)));
         }
         return result;
     }
     
-    private Collection<RouteUnit> rewriteAndConvert(final String sql, final List<Object> parameters, final SQLRouteResult sqlRouteResult) {
-        SQLRewriteEngine rewriteEngine = new SQLRewriteEngine(shardingRule, sql, databaseType, sqlRouteResult, parameters, sqlRouteResult.getOptimizeResult());
-        SQLBuilder sqlBuilder = rewriteEngine.rewrite(sqlRouteResult.getRoutingResult().isSingleRouting());
+    private Collection<RouteUnit> rewriteAndConvert(final List<Object> parameters, final SQLRouteResult sqlRouteResult) {
+        SQLRewriteEngine rewriteEngine = new SQLRewriteEngine(shardingRule, databaseType, sqlRouteResult, parameters);
         Collection<RouteUnit> result = new LinkedHashSet<>();
-        for (TableUnit each : sqlRouteResult.getRoutingResult().getTableUnits().getTableUnits()) {
-            result.add(new RouteUnit(each.getDataSourceName(), rewriteEngine.generateSQL(each, sqlBuilder, metaData.getDataSource())));
+        for (RoutingUnit each : sqlRouteResult.getRoutingResult().getRoutingUnits()) {
+            result.add(new RouteUnit(each.getDataSourceName(), rewriteEngine.generateSQL(each)));
         }
         return result;
     }

@@ -19,9 +19,9 @@ package org.apache.shardingsphere.core.parse.integrate.engine;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.shardingsphere.core.constant.DatabaseType;
-import org.apache.shardingsphere.core.parse.SQLParsingEngine;
 import org.apache.shardingsphere.core.parse.cache.ParsingResultCache;
-import org.apache.shardingsphere.core.parse.old.parser.exception.SQLParsingException;
+import org.apache.shardingsphere.core.parse.entry.ShardingSQLParseEntry;
+import org.apache.shardingsphere.core.parse.exception.SQLParsingException;
 import org.apache.shardingsphere.test.sql.SQLCaseType;
 import org.apache.shardingsphere.test.sql.SQLCasesLoader;
 import org.junit.Test;
@@ -49,7 +49,7 @@ public final class IntegrateSQLParsingExceptionTest extends AbstractBaseIntegrat
     
     @Test(expected = SQLParsingException.class)
     public void assertSQLParsingExceptionSQL() {
-        new SQLParsingEngine(databaseType, 
-                sqlCasesLoader.getSQLParsingErrorSQL(sqlCaseId, sqlCaseType, Collections.emptyList()), getShardingRule(), getShardingTableMetaData(), new ParsingResultCache()).parse(false);
+        new ShardingSQLParseEntry(databaseType, getShardingRule(), getShardingTableMetaData(), new ParsingResultCache())
+                .parse(sqlCasesLoader.getSQLParsingErrorSQL(sqlCaseId, sqlCaseType, Collections.emptyList()), false);
     }
 }

@@ -19,10 +19,10 @@ package org.apache.shardingsphere.core.parse.extractor;
 
 import com.google.common.base.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.apache.shardingsphere.core.parse.antlr.extractor.api.OptionalSQLSegmentExtractor;
-import org.apache.shardingsphere.core.parse.antlr.extractor.util.ExtractorUtils;
-import org.apache.shardingsphere.core.parse.antlr.extractor.util.RuleName;
-import org.apache.shardingsphere.core.parse.antlr.sql.segment.ddl.constraint.DropPrimaryKeySegment;
+import org.apache.shardingsphere.core.parse.extractor.api.OptionalSQLSegmentExtractor;
+import org.apache.shardingsphere.core.parse.extractor.util.ExtractorUtils;
+import org.apache.shardingsphere.core.parse.extractor.util.RuleName;
+import org.apache.shardingsphere.core.parse.sql.segment.ddl.constraint.DropPrimaryKeySegment;
 
 import java.util.Map;
 
@@ -39,6 +39,8 @@ public final class OracleDropPrimaryKeyExtractor implements OptionalSQLSegmentEx
         if (!dropConstraintNode.isPresent()) {
             return Optional.absent();
         }
-        return ExtractorUtils.findFirstChildNode(dropConstraintNode.get(), RuleName.PRIMARY_KEY).isPresent() ? Optional.of(new DropPrimaryKeySegment()) : Optional.<DropPrimaryKeySegment>absent();
+        return ExtractorUtils.findFirstChildNode(dropConstraintNode.get(), RuleName.PRIMARY_KEY).isPresent()
+                ? Optional.of(new DropPrimaryKeySegment(dropConstraintNode.get().getStart().getStartIndex(), dropConstraintNode.get().getStop().getStopIndex()))
+                : Optional.<DropPrimaryKeySegment>absent();
     }
 }

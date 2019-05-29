@@ -18,9 +18,9 @@
 package org.apache.shardingsphere.core.parse.integrate.asserts.token;
 
 import org.apache.shardingsphere.core.constant.DatabaseType;
-import org.apache.shardingsphere.core.parse.antlr.sql.token.SQLToken;
 import org.apache.shardingsphere.core.parse.integrate.asserts.SQLStatementAssertMessage;
 import org.apache.shardingsphere.core.parse.integrate.jaxb.token.ExpectedTokens;
+import org.apache.shardingsphere.core.parse.sql.token.SQLToken;
 import org.apache.shardingsphere.test.sql.SQLCaseType;
 
 import java.util.Collection;
@@ -32,19 +32,9 @@ import java.util.Collection;
  */
 public final class TokenAssert {
     
-    private final TableTokenAssert tableTokenAssert;
-    
-    private final SchemaTokenAssert schemaTokenAssert;
-    
     private final IndexTokenAssert indexTokenAssert;
     
-    private final ItemsTokenAssert itemsTokenAssert;
-    
-    private final GeneratedKeyTokenAssert generatedKeyTokenAssert;
-    
     private final InsertValuesTokenAssert insertValuesTokenAssert;
-    
-    private final OrderByTokenAssert orderByTokenAssert;
     
     private final OffsetTokenAssert offsetTokenAssert;
     
@@ -54,20 +44,18 @@ public final class TokenAssert {
     
     private final EncryptColumnTokenAssert encryptColumnTokenAssert;
     
+    private final RemoveTokenAssert removeTokenAssert;
+    
     private final DatabaseType databaseType;
     
     public TokenAssert(final SQLCaseType sqlCaseType, final SQLStatementAssertMessage assertMessage, final DatabaseType databaseType) {
-        tableTokenAssert = new TableTokenAssert(assertMessage);
-        schemaTokenAssert = new SchemaTokenAssert(assertMessage);
         indexTokenAssert = new IndexTokenAssert(assertMessage);
-        itemsTokenAssert = new ItemsTokenAssert(assertMessage);
-        generatedKeyTokenAssert = new GeneratedKeyTokenAssert(sqlCaseType, assertMessage);
         insertValuesTokenAssert = new InsertValuesTokenAssert(assertMessage);
-        orderByTokenAssert = new OrderByTokenAssert(sqlCaseType, assertMessage);
         offsetTokenAssert = new OffsetTokenAssert(sqlCaseType, assertMessage);
         rowCountTokenAssert = new RowCountTokenAssert(sqlCaseType, assertMessage);
         aggregationDistinctTokenAssert = new AggregationDistinctTokenAssert(assertMessage);
         encryptColumnTokenAssert = new EncryptColumnTokenAssert(sqlCaseType, assertMessage);
+        removeTokenAssert = new RemoveTokenAssert(assertMessage);
         this.databaseType = databaseType;
     }
     
@@ -78,18 +66,15 @@ public final class TokenAssert {
      * @param expected expected tokens
      */
     public void assertTokens(final Collection<SQLToken> actual, final ExpectedTokens expected) {
-        tableTokenAssert.assertTableTokens(actual, expected);
-        schemaTokenAssert.assertSchemaTokens(actual, expected);
+        // TODO do not assert table token, will assert table segment in future
         indexTokenAssert.assertIndexToken(actual, expected);
-        itemsTokenAssert.assertItemsToken(actual, expected);
-        generatedKeyTokenAssert.assertGeneratedKeyToken(actual, expected);
         insertValuesTokenAssert.assertInsertValuesToken(actual, expected);
-        orderByTokenAssert.assertOrderByToken(actual, expected);
         offsetTokenAssert.assertOffsetToken(actual, expected);
         rowCountTokenAssert.assertRowCountToken(actual, expected);
         aggregationDistinctTokenAssert.assertAggregationDistinctTokens(actual, expected);
-        if(DatabaseType.MySQL == databaseType) {
+        if (DatabaseType.MySQL == databaseType) {
             encryptColumnTokenAssert.assertEncryptColumnsToken(actual, expected);
         }
+        removeTokenAssert.assertRemoveTokens(actual, expected);
     }
 }
